@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Particles } from "./particles";
 import { Orbs } from "./orbs";
+// Orbs.updateBillboards çağrısı render loop'ta yapılır
 import { SpaceControls } from "./controls";
 
 export class SpaceSceneController {
@@ -15,7 +16,6 @@ export class SpaceSceneController {
     this.orbGroup = null;
     this.stars = null;
     this.nebula = null;
-    this.milkyWay = null;
     this.orbMeshes = [];
     this.selectedOrb = null;
     this.zoomTarget = 0;
@@ -23,6 +23,9 @@ export class SpaceSceneController {
     this.isOpen = false;
     this.animId = null;
     this.cleanupShootingStars = null;
+
+    // Each controller gets its own SpaceControls instance — no singleton conflict
+    this.controls = new SpaceControls();
 
     this.raycaster = new THREE.Raycaster();
     this.mouse2d = new THREE.Vector2();
@@ -64,7 +67,7 @@ export class SpaceSceneController {
   destroy() {
     this.close();
 
-    SpaceControls.destroy();
+    this.controls.destroy();
     window.removeEventListener("resize", this.handleResize);
 
     if (this.cleanupShootingStars) {
@@ -112,12 +115,8 @@ export class SpaceSceneController {
     this.camera = new THREE.PerspectiveCamera(65, W / H, 0.1, 1000);
     this.camera.position.set(0, 0, 0);
 
-    this.stars = Particles.makeStars();
+    this.stars  = Particles.makeStars();
     this.nebula = Particles.makeNebula();
-    this.milkyWay = Particles.makeMilkyWay();
-
-    this.nebula.scale.set(1.4, 1.1, 1.4);
-    this.nebula.position.set(0, 20, -120);
 
     this.scene.add(this.stars, this.nebula);
     this.scene.add(new THREE.AmbientLight(0x8090c0, 0.6));
@@ -139,7 +138,7 @@ export class SpaceSceneController {
 
     this.rebuild();
 
-    SpaceControls.init(this.overlayEl, this.camera, this.handleClick);
+    this.controls.init(this.overlayEl, this.camera, this.handleClick);
 
     this.cleanupShootingStars = Particles.startShootingStars(
       this.overlayEl,
@@ -150,12 +149,13 @@ export class SpaceSceneController {
   }
 
   rebuild() {
-    const result = Orbs.build(this.orbGroup, this.renderer, this.memories);
-    this.orbMeshes = result.orbMeshes;
+    Orbs.build(this.orbGroup, this.renderer, this.memories).then(result => {
+      this.orbMeshes = result.orbMeshes;
+    });
     this.selectedOrb = null;
     this.zoomTarget = 0;
     this.zoomProg = 0;
-    SpaceControls.setAutoRotate(true);
+    this.controls.setAutoRotate(true);
   }
 
   startLoop() {
@@ -169,13 +169,19 @@ export class SpaceSceneController {
       this.animId = requestAnimationFrame(loop);
       const t = performance.now() * 0.001;
 
-      const { lx, ly, lz } = SpaceControls.tick();
+      const { lx, ly, lz } = this.controls.tick();
 
       if (this.stars?.material?.uniforms) {
         this.stars.material.uniforms.time.value = t;
       }
 
-      if (this.nebula) this.nebula.rotation.y = t * 0.01;
+      // Her nebula kendi hızında dönsün — daha organik his
+      if (this.nebula) {
+        this.nebula.children.forEach((child, i) => {
+          child.rotation.y = t * (0.003 + i * 0.0008);
+          child.rotation.x = t * (0.001 + i * 0.0004);
+        });
+      }
 
       this.zoomProg = lerp(this.zoomProg, this.zoomTarget, 0.045);
 
@@ -212,10 +218,15 @@ export class SpaceSceneController {
             );
           }
 
-          if (grp.children[0]) {
-            grp.children[0].rotation.y = t * 0.08 + i * 0.6;
-          }
+          // Tüm grubu döndür — fotoğraf + cam + glow birlikte
+          grp.rotation.y = t * 0.08 + i * 0.6;
         });
+      }
+
+      // Shader time + billboard güncelle
+      if (this.orbGroup) {
+        Orbs.updateBillboards(this.orbGroup, this.camera);
+        Orbs.updateShaders(this.orbGroup, t);
       }
 
       this.renderer.render(this.scene, this.camera);
@@ -246,14 +257,14 @@ export class SpaceSceneController {
   select(grp, mem) {
     this.selectedOrb = grp;
     this.zoomTarget = 1;
-    SpaceControls.setAutoRotate(false);
+    this.controls.setAutoRotate(false);
     setTimeout(() => this.showPanel(mem), 350);
   }
 
   deselect() {
     this.selectedOrb = null;
     this.zoomTarget = 0;
-    SpaceControls.setAutoRotate(true);
+    this.controls.setAutoRotate(true);
     this.hidePanel();
   }
 

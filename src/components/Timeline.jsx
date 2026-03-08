@@ -10,11 +10,10 @@ function Timeline({ memories, onEdit, onDelete }) {
         {memories.length === 0 ? (
           <EmptyState />
         ) : (
-          memories.map((memory, index) => (
+          memories.map((memory) => (
             <MemoryCard
-              key={`${memory.date}-${memory.title}-${index}`}
+              key={memory.id}
               memory={memory}
-              index={index}
               onEdit={onEdit}
               onDelete={onDelete}
             />

@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
+import { compressImage } from "../data/memoryStorage";
 
-function MemoryModal({ isOpen, onClose, onSave, editingMemory }) {
+function MemoryModal({ isOpen, onClose, onSave, editingMemory, isSaving }) {
   const [date, setDate] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [originalSize, setOriginalSize] = useState(null);
+  const [compressedSize, setCompressedSize] = useState(null);
 
   useEffect(() => {
     if (editingMemory) {
@@ -18,31 +22,43 @@ function MemoryModal({ isOpen, onClose, onSave, editingMemory }) {
       setDescription("");
       setImage(null);
     }
+    setOriginalSize(null);
+    setCompressedSize(null);
   }, [editingMemory, isOpen]);
 
-  function handleFileChange(e) {
+  async function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsCompressing(true);
+    setOriginalSize((file.size / 1024).toFixed(1));
+
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setImage(ev.target.result);
+    reader.onload = async (ev) => {
+      const raw = ev.target.result;
+      const compressed = await compressImage(raw);
+      const compressedBytes = Math.round((compressed.length * 3) / 4);
+      setCompressedSize((compressedBytes / 1024).toFixed(1));
+      setImage(compressed);
+      setIsCompressing(false);
     };
     reader.readAsDataURL(file);
   }
 
+  function handleRemoveImage() {
+    setImage(null);
+    setOriginalSize(null);
+    setCompressedSize(null);
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
-
-    onSave({
-      date,
-      title,
-      description,
-      image,
-    });
+    onSave({ date, title, description, image });
   }
 
   if (!isOpen) return null;
+
+  const busy = isCompressing || isSaving;
 
   return (
     <div className="modal" style={{ display: "flex" }}>
@@ -59,6 +75,7 @@ function MemoryModal({ isOpen, onClose, onSave, editingMemory }) {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
+              disabled={busy}
             />
           </div>
 
@@ -70,6 +87,7 @@ function MemoryModal({ isOpen, onClose, onSave, editingMemory }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
+              disabled={busy}
             />
           </div>
 
@@ -81,26 +99,89 @@ function MemoryModal({ isOpen, onClose, onSave, editingMemory }) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
+              disabled={busy}
             />
           </div>
 
+          {/* ── Fotoğraf alanı ── */}
           <div style={{ marginBottom: "20px" }}>
             <label>Fotoğraf Ekle</label>
-            <input type="file" accept="image/*" onChange={handleFileChange} />
+
+            {!image ? (
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                disabled={busy}
+              />
+            ) : (
+              <div style={{ marginTop: "10px" }}>
+                {/* Önizleme */}
+                <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+                  <img
+                    src={image}
+                    alt="Önizleme"
+                    style={{
+                      width: "100%",
+                      borderRadius: "12px",
+                      maxHeight: "200px",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    style={{
+                      position: "absolute",
+                      top: "8px",
+                      right: "8px",
+                      background: "rgba(0,0,0,0.7)",
+                      border: "none",
+                      borderRadius: "50%",
+                      color: "white",
+                      width: "28px",
+                      height: "28px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Sıkıştırma bilgisi */}
+                {isCompressing && (
+                  <p style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: "6px" }}>
+                    ⏳ Fotoğraf optimize ediliyor...
+                  </p>
+                )}
+                {!isCompressing && originalSize && compressedSize && (
+                  <p style={{ fontSize: "0.78rem", color: "#6ee7b7", marginTop: "6px" }}>
+                    ✅ {originalSize} KB → {compressedSize} KB'a sıkıştırıldı
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>
             <button
               type="button"
               onClick={onClose}
+              disabled={busy}
               style={{
                 flex: 1,
                 background: "transparent",
                 color: "white",
                 border: "1px solid rgba(255,255,255,0.2)",
-                cursor: "pointer",
+                cursor: busy ? "not-allowed" : "pointer",
                 borderRadius: "12px",
                 padding: "12px",
+                opacity: busy ? 0.5 : 1,
               }}
             >
               İptal
@@ -108,18 +189,24 @@ function MemoryModal({ isOpen, onClose, onSave, editingMemory }) {
 
             <button
               type="submit"
+              disabled={busy}
               style={{
                 flex: 2,
-                background: "var(--gradient)",
+                background: busy ? "rgba(255,126,95,0.4)" : "var(--gradient)",
                 border: "none",
                 color: "white",
                 padding: "12px",
                 borderRadius: "12px",
-                cursor: "pointer",
+                cursor: busy ? "not-allowed" : "pointer",
                 fontWeight: 600,
+                transition: "background 0.3s",
               }}
             >
-              Kaydet 💕
+              {isCompressing
+                ? "⏳ Optimize ediliyor..."
+                : isSaving
+                ? "💾 Kaydediliyor..."
+                : "Kaydet 💕"}
             </button>
           </div>
         </form>
