@@ -1,16 +1,108 @@
-# React + Vite
+# Memory Verse
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Memory Verse**, React + Vite + Three.js kullanılarak geliştirilen, tamamen **local-first** çalışan kişisel bir anı uygulamasıdır.  
+Uygulama, özel anıları hem klasik bir **zaman çizelgesi (timeline)** görünümünde hem de etkileşimli bir **3B Anı Evreni** içinde sunar.
 
-Currently, two official plugins are available:
+Bu proje kişisel kullanım amacıyla tasarlanmıştır.  
+Herhangi bir kullanıcı sistemi, sunucu veya bulut entegrasyonu içermez. Veriler cihaz üzerinde tutulur.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## Özellikler
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Anı ekleme, düzenleme ve silme
+- Tarih, başlık, açıklama ve fotoğraf destekli anı yapısı
+- Romantik ve estetik tasarıma sahip timeline görünümü
+- Three.js ile oluşturulmuş etkileşimli **3B Anı Evreni**
+- Fare ile sahne döndürme
+- Scroll ile yakınlaşma / uzaklaşma hissi
+- Orb seçildiğinde detay paneli açılması
+- Fotoğraflı anıların küre içinde “anı çekirdeği” gibi gösterilmesi
+- Tamamen local çalışan yapı
+- Kişisel ve gizli kullanım odaklı tasarım
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Kullanılan Teknolojiler
+
+- **React**
+- **Vite**
+- **Three.js**
+- **CSS**
+- **localStorage** (şu anki veri katmanı)
+
+---
+
+## Proje Mantığı
+
+Uygulama iki ana bölümden oluşur:
+
+### 1. Timeline Görünümü
+Kullanıcı burada:
+- yeni anı ekleyebilir,
+- mevcut anıları düzenleyebilir,
+- anıları silebilir.
+
+Her anı şu bilgileri içerebilir:
+- tarih
+- başlık
+- açıklama
+- fotoğraf
+
+### 2. Anı Evreni
+Timeline’daki anılar ayrıca 3B uzay benzeri bir sahnede küreler/orblar halinde gösterilir.
+
+Bu bölümde:
+- her anı bir orb ile temsil edilir,
+- fotoğraflı anılar özel görsel küre yapısıyla sunulur,
+- sahne sürüklenebilir,
+- orb’lara tıklanabilir,
+- seçilen orb için detay paneli açılır.
+
+---
+
+## Gizlilik Yaklaşımı
+
+Bu proje özellikle **kişisel kullanım** için geliştirildiği için gizlilik ön planda tutulmuştur.
+
+- Kullanıcı sistemi yoktur
+- Sunucu bağlantısı yoktur
+- Veriler herhangi bir bulut servisine gönderilmez
+- Anılar cihaz üzerinde tutulur
+- Uygulama local-first mantıkla çalışır
+
+> Not: Şu an veri saklama için `localStorage` kullanılmaktadır.  
+> İlerleyen aşamalarda daha gelişmiş ve güvenli local veri yönetimi için `IndexedDB` planlanmaktadır.
+
+---
+
+## Klasör Yapısı
+
+```bash
+memory-verse/
+├─ public/
+├─ src/
+│  ├─ components/
+│  │  ├─ universe/
+│  │  │  └─ SpaceScene.jsx
+│  │  ├─ EmptyState.jsx
+│  │  ├─ FloatingHearts.jsx
+│  │  ├─ Header.jsx
+│  │  ├─ MemoryCard.jsx
+│  │  ├─ MemoryModal.jsx
+│  │  └─ Timeline.jsx
+│  ├─ data/
+│  │  └─ memoryStorage.js
+│  ├─ styles/
+│  │  └─ main.css
+│  ├─ universe/
+│  │  ├─ controls.js
+│  │  ├─ orbs.js
+│  │  ├─ particles.js
+│  │  └─ scene.js
+│  ├─ App.jsx
+│  └─ main.jsx
+├─ index.html
+├─ package.json
+├─ vite.config.js
+└─ README.md
