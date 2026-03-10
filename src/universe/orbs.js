@@ -75,7 +75,7 @@ export const Orbs = (() => {
 
           // Radyal vignette — kenarlara doğru eriyor
           float dist = length(n.xy);
-          float vig  = 1.0 - smoothstep(0.72, 1.0, dist);
+          float vig  = 1.0 - smoothstep(0.92, 1.0, dist);
 
           // Dönen mavi/cyan iç yansıma — küre içinde dönen ışık halkası
           float innerAngle = atan(n.y, n.x) + uTime * 0.5;
@@ -85,12 +85,12 @@ export const Orbs = (() => {
                       * (0.5 + 0.5 * cos(innerAngle * 2.0 - uTime * 0.8));
 
           // Halka rengi = orbun kendi rengi
-          vec3 ringCol = uColor * ring1 * 1.1
-                       + uColor * ring2 * 0.7;
+          vec3 ringCol = uColor * ring1 * 0.45
+                       + uColor * ring2 * 0.28;
 
           // Kenar parlaklık — orbun rengiyle
           float edge    = smoothstep(0.75, 1.0, dist);
-          vec3  edgeCol = uColor * edge * 0.65;
+          vec3  edgeCol = uColor * edge * 0.28;
 
           // Fotoğrafa çok hafif renk tinti — camın içindeymiş gibi
           vec3 tinted = mix(photo.rgb, uColor, 0.09);
@@ -137,11 +137,11 @@ export const Orbs = (() => {
 
           // Dönen ışık bandı — küre üzerinde dönen parlak şerit
           float angle  = atan(vLocalPos.z, vLocalPos.x) + uTime * 0.6;
-          float band   = smoothstep(0.85, 1.0, sin(angle)) * 0.5;
+          float band   = smoothstep(0.85, 1.0, sin(angle)) * 0.22;
 
           // İkinci daha hızlı bant — zıt yön
           float angle2 = atan(vLocalPos.y, vLocalPos.x) - uTime * 0.4;
-          float band2  = smoothstep(0.9, 1.0, sin(angle2)) * 0.3;
+          float band2  = smoothstep(0.9, 1.0, sin(angle2)) * 0.12;
 
           // Pulse
           float pulse  = 0.5 + 0.5 * sin(uTime * 1.4);
@@ -150,7 +150,7 @@ export const Orbs = (() => {
           vec3 glowCol = uColor * 1.3;
           vec3 col     = glowCol * (fresnel + band + band2);
 
-          float alpha  = fresnel * (0.75 + pulse * 0.2) + band * 0.5 + band2 * 0.3;
+          float alpha  = fresnel * (0.55 + pulse * 0.1) + band * 0.2 + band2 * 0.1;
           alpha        = clamp(alpha, 0.0, 1.0);
 
           gl_FragColor = vec4(col, alpha);
