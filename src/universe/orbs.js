@@ -106,7 +106,7 @@ export const Orbs = (() => {
     });
   }
 
-  // ── Dış cam shader — dramatik Fresnel + dönen ışık bandı ───────────────
+  // ── Dış atmosfer: katmanlı gerçekçi glow ────────────────────────────────
   function makeGlassMaterial(clr) {
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -133,25 +133,35 @@ export const Orbs = (() => {
 
         void main() {
           vec3  view    = normalize(cameraPosition - vPos);
-          float fresnel = pow(1.0 - abs(dot(vNormal, view)), 2.8);
+          float ndotv   = abs(dot(vNormal, view));
 
-          // Dönen ışık bandı — küre üzerinde dönen parlak şerit
-          float angle  = atan(vLocalPos.z, vLocalPos.x) + uTime * 0.6;
-          float band   = smoothstep(0.85, 1.0, sin(angle)) * 0.22;
+          // Katman 1: Dar, keskin Fresnel — cam kenarı
+          float rim1  = pow(1.0 - ndotv, 5.5);
 
-          // İkinci daha hızlı bant — zıt yön
-          float angle2 = atan(vLocalPos.y, vLocalPos.x) - uTime * 0.4;
-          float band2  = smoothstep(0.9, 1.0, sin(angle2)) * 0.12;
+          // Katman 2: Geniş, yumuşak atmosfer
+          float rim2  = pow(1.0 - ndotv, 2.2) * 0.35;
 
-          // Pulse
-          float pulse  = 0.5 + 0.5 * sin(uTime * 1.4);
+          // Katman 3: Çok geniş, soluk dış halo
+          float halo  = pow(1.0 - ndotv, 1.1) * 0.12;
 
-          // Renk: tamamen orbun rengi
-          vec3 glowCol = uColor * 1.3;
-          vec3 col     = glowCol * (fresnel + band + band2);
+          // Dönen çok ince ışık damarı (subdued)
+          float angle = atan(vLocalPos.z, vLocalPos.x) + uTime * 0.35;
+          float vein  = smoothstep(0.92, 1.0, sin(angle * 2.0)) * rim1 * 0.4;
 
-          float alpha  = fresnel * (0.55 + pulse * 0.1) + band * 0.2 + band2 * 0.1;
-          alpha        = clamp(alpha, 0.0, 1.0);
+          // Nefes alan pulse — çok hafif
+          float pulse = 0.5 + 0.5 * sin(uTime * 0.9);
+          float breathe = pulse * rim1 * 0.12;
+
+          // Renk karışımı:
+          // - Kenar: orbun rengi
+          // - Atmosfer: orbun rengi biraz soğutulmuş
+          // - Halo: daha soluk
+          vec3 rimCol  = uColor * (rim1 + vein + breathe);
+          vec3 atmCol  = mix(uColor, uColor * 0.6, 0.4) * rim2;
+          vec3 haloCol = uColor * 0.3 * halo;
+
+          vec3  col   = rimCol + atmCol + haloCol;
+          float alpha = clamp(rim1 * 0.85 + rim2 * 0.5 + halo * 0.3 + vein * 0.3, 0.0, 1.0);
 
           gl_FragColor = vec4(col, alpha);
         }
@@ -205,13 +215,71 @@ export const Orbs = (() => {
       grp.add(orb);
     }
 
-    // Dış glow
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: clr, transparent: true, opacity: 0.07,
-      side: THREE.BackSide, depthWrite: false,
-      blending: THREE.AdditiveBlending,
+    // Dış glow — gerçekçi noise shader
+    const glowMat = new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: clr }, uTime: { value: 0 } },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vPos;
+        varying vec3 vLocal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vPos    = (modelMatrix * vec4(position,1.0)).xyz;
+          vLocal  = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3  uColor;
+        uniform float uTime;
+        varying vec3  vNormal;
+        varying vec3  vPos;
+        varying vec3  vLocal;
+
+        float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+        float noise(vec2 p){
+          vec2 i=floor(p), f=fract(p);
+          f=f*f*(3.0-2.0*f);
+          return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),
+                     mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
+        }
+
+        void main(){
+          vec3  view    = normalize(cameraPosition - vPos);
+          float fresnel = pow(1.0 - abs(dot(vNormal, view)), 2.2);
+
+          float theta   = atan(vLocal.z, vLocal.x);
+          float phi     = atan(vLocal.y, length(vLocal.xz));
+          vec2  uv      = vec2(theta*0.8 + uTime*0.12, phi*1.2 + uTime*0.08);
+
+          float n1      = noise(uv * 2.5);
+          float n2      = noise(uv * 5.0 + 1.3);
+          float distort = 0.55 + 0.45*(n1*0.7 + n2*0.3);
+          float breath  = 0.75 + 0.25*sin(uTime*0.9 + n1*2.0);
+          float topLight= 0.7  + 0.3*smoothstep(-1.0,1.0, vLocal.y/11.0);
+          float sparkle = pow(max(0.0, noise(uv*12.0 + uTime*0.3)-0.72),2.0)*3.5;
+
+          float alpha   = fresnel*distort*breath*topLight*0.38 + sparkle*fresnel*0.15;
+          alpha         = clamp(alpha, 0.0, 1.0);
+
+          vec3 warm = uColor*1.4 + vec3(0.08,0.04,0.0);
+          vec3 cool = uColor*0.7 + vec3(0.0,0.05,0.12);
+          vec3 col  = mix(warm, cool, fresnel*0.4) + sparkle*vec3(0.3,0.3,0.4);
+
+          gl_FragColor = vec4(col, alpha);
+        }
+      `,
+      transparent: true,
+      side:        THREE.BackSide,
+      depthWrite:  false,
+      blending:    THREE.AdditiveBlending,
     });
-    grp.add(new THREE.Mesh(new THREE.SphereGeometry(SPH_RADIUS * 1.45, 32, 32), glowMat));
+    const glowMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(SPH_RADIUS * 1.55, 64, 64),
+      glowMat
+    );
+    glowMesh.userData.shaderMat = glowMat;
+    grp.add(glowMesh);
 
     // Pozisyon
     const golden = (1 + Math.sqrt(5)) / 2;
