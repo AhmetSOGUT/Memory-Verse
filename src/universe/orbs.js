@@ -274,12 +274,7 @@ export const Orbs = (() => {
       depthWrite:  false,
       blending:    THREE.AdditiveBlending,
     });
-    const glowMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(SPH_RADIUS * 1.55, 64, 64),
-      glowMat
-    );
-    glowMesh.userData.shaderMat = glowMat;
-    grp.add(glowMesh);
+    // glowMesh kaldırıldı
 
     // Pozisyon
     const golden = (1 + Math.sqrt(5)) / 2;
