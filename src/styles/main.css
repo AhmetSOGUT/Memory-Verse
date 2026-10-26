@@ -154,3 +154,39 @@ input[type=file] { cursor:pointer; }
     .card-content { width:calc(100% - 60px) !important; margin-left:60px !important; }
     .header h1 { font-size:2.5rem; }
 }
+
+/* ── Anı Evreni: detay paneli (eski innerHTML paneli yerine) ─────────────── */
+.space-hint { pointer-events:none; }
+.orb-panel {
+    position:fixed; top:50%; right:3vw; width:360px; max-width:90vw;
+    transform:translateY(-50%); z-index:3000; overflow:hidden; color:white;
+    font-family:Poppins,sans-serif;
+    background:rgba(4,8,24,0.92); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+    border:1px solid rgba(255,255,255,0.13); border-radius:28px;
+    box-shadow:0 24px 80px rgba(0,0,0,0.9), 0 0 60px rgba(255,100,140,0.1);
+    animation:orbPanelIn 0.45s 0.35s cubic-bezier(0.2,0.8,0.2,1) both;
+}
+@keyframes orbPanelIn {
+    from { opacity:0; transform:translateY(-50%) translateX(30px); }
+    to   { opacity:1; transform:translateY(-50%) translateX(0); }
+}
+.orb-panel__photo {
+    width:100%; background:#06090f; border-radius:28px 28px 0 0;
+    display:flex; align-items:center; justify-content:center; padding:16px;
+}
+.orb-panel__photo img { max-width:100%; max-height:260px; object-fit:contain; border-radius:16px; display:block; }
+.orb-panel__placeholder {
+    width:100%; height:140px; border-radius:28px 28px 0 0; font-size:3.5rem;
+    background:linear-gradient(135deg,#ff758c44,#7b4fe888);
+    display:flex; align-items:center; justify-content:center;
+}
+.orb-panel__body { padding:22px 24px 24px; }
+.orb-panel__date { font-size:0.68rem; text-transform:uppercase; letter-spacing:2.5px; color:#ff758c; font-weight:600; margin-bottom:8px; }
+.orb-panel__title { font-size:1.18rem; font-weight:700; margin-bottom:10px; line-height:1.3; }
+.orb-panel__desc { font-size:0.86rem; color:#94a3b8; line-height:1.7; }
+.orb-panel__close {
+    position:absolute; top:12px; right:12px; width:32px; height:32px; border-radius:50%;
+    background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0;
+    cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(8px);
+}
