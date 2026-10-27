@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { MILKY_WAY_NORMAL, NEBULA } from "./constants";
+import { createCircleTexture, createDustGeometry, createStarGeometry } from "./generate";
+import { bakeNebulaTexture } from "./sky";
 import {
-  createCircleTexture, createDustGeometry, createStarGeometry, pickNebulaPalette,
-} from "./generate";
-import {
-  dustFragment, dustVertex, nebulaFragment, nebulaVertex, starFragment, starVertex,
+  dustFragment, dustVertex, skyFragment, skyVertex, starFragment, starVertex,
 } from "./shaders";
 
 /** Yıldız alanı: tek Points nesnesi, GPU'da titreşir. */
@@ -47,20 +45,17 @@ export function Stars() {
   );
 }
 
-/** Arka plan: nebula bulutları + Samanyolu bandı (tek shader'lı dev küre). */
+/** Arka plan: önceden çizilmiş nebula dokusunu okuyan dev küre (kare başına çok ucuz). */
 export function NebulaSky() {
+  const gl = useThree((state) => state.gl);
   const matRef = useRef<THREE.ShaderMaterial>(null);
-  const uniforms = useMemo(() => {
-    const [a, b, c] = pickNebulaPalette();
-    return {
-      uTime: { value: 0 },
-      uIntensity: { value: NEBULA.intensity },
-      uBandNormal: { value: new THREE.Vector3(...MILKY_WAY_NORMAL).normalize() },
-      uColA: { value: a },
-      uColB: { value: b },
-      uColC: { value: c },
-    };
-  }, []);
+  const uniforms = useMemo(() => ({ uSky: { value: null as THREE.Texture | null }, uTime: { value: 0 } }), []);
+
+  useLayoutEffect(() => {
+    const target = bakeNebulaTexture(gl);
+    if (matRef.current) matRef.current.uniforms.uSky.value = target.texture;
+    return () => target.dispose();
+  }, [gl]);
 
   useFrame(({ clock }) => {
     if (matRef.current) matRef.current.uniforms.uTime.value = clock.elapsedTime;
@@ -68,12 +63,12 @@ export function NebulaSky() {
 
   return (
     <mesh renderOrder={-10} frustumCulled={false}>
-      <sphereGeometry args={[900, 48, 32]} />
+      <sphereGeometry args={[900, 32, 24]} />
       <shaderMaterial
         ref={matRef}
         uniforms={uniforms}
-        vertexShader={nebulaVertex}
-        fragmentShader={nebulaFragment}
+        vertexShader={skyVertex}
+        fragmentShader={skyFragment}
         side={THREE.BackSide}
         depthWrite={false}
         depthTest={false}

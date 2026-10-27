@@ -1,5 +1,7 @@
 import * as THREE from "three";
-import { MILKY_WAY_NORMAL, MILKY_WAY_STAR_SHARE, STAR_COUNT } from "./constants";
+import {
+  MILKY_WAY_NORMAL, MILKY_WAY_STAR_SHARE, PHOTO_TEXTURE_SIZE, STAR_COUNT,
+} from "./constants";
 // Rastgele veri üretimi bileşenlerin dışında tutulur (render saf kalsın).
 
 /** Tohumlu rastgele sayı üreteci — aynı tohum, aynı gökyüzü. */
@@ -100,28 +102,39 @@ export function pickNebulaPalette(): [THREE.Color, THREE.Color, THREE.Color] {
   return [new THREE.Color(p[0]), new THREE.Color(p[1]), new THREE.Color(p[2])];
 }
 
-/** Fotoğrafı kare kırpıp küre dokusuna çevirir. */
-export function loadPhotoTexture(src: string, size = 512): Promise<THREE.CanvasTexture | null> {
-  return new Promise((resolve) => {
+async function decodeToTexture(src: string, size: number): Promise<THREE.CanvasTexture | null> {
+  try {
     const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d")!;
-      const ar = img.width / img.height;
-      let sx = 0, sy = 0, sw = img.width, sh = img.height;
-      if (ar > 1) { sx = (img.width - img.height) / 2; sw = img.height; }
-      else { sy = (img.height - img.width) / 2; sh = img.width; }
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
-      const tex = new THREE.CanvasTexture(canvas);
-      tex.minFilter = THREE.LinearFilter;
-      tex.magFilter = THREE.LinearFilter;
-      resolve(tex);
-    };
-    img.onerror = () => resolve(null);
     img.src = src;
-  });
+    await img.decode(); // çözme işi ana iş parçacığının dışında yapılır
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d")!;
+    const ar = img.width / img.height;
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+    if (ar > 1) { sx = (img.width - img.height) / 2; sw = img.height; }
+    else { sy = (img.height - img.width) / 2; sh = img.width; }
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    return tex;
+  } catch {
+    return null;
+  }
+}
+
+// Fotoğraflar tek tek, aralarında bir kare bekleyerek yüklenir: 100 anı açılırken
+// tek seferde takılma yapmaz, arayüz akıcı kalır.
+let photoQueue: Promise<unknown> = Promise.resolve();
+
+/** Fotoğrafı kare kırpıp küre dokusuna çevirir (sıraya girer). */
+export function loadPhotoTexture(src: string, size = PHOTO_TEXTURE_SIZE): Promise<THREE.CanvasTexture | null> {
+  const job = photoQueue.then(() => decodeToTexture(src, size));
+  photoQueue = job.then(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  return job;
 }
 
 /** Altın oran spiraliyle küre konumu (orijinal yerleşimle aynı). */

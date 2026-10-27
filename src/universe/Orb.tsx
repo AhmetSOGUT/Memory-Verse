@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Memory } from "../types";
 import {
-  FOCUS_DISTANCE, GLASS_SHEEN, GLASS_STRENGTH, GLOW_STRENGTH, ORB_COLORS, SPHERE_RADIUS,
+  FOCUS_DISTANCE, GLASS_SHEEN, GLASS_STRENGTH, GLOW_STRENGTH, ORB_COLORS, SPHERE_RADIUS, SPHERE_SEGMENTS,
 } from "./constants";
 import { loadPhotoTexture, orbPosition } from "./generate";
 import {
@@ -21,12 +21,19 @@ interface OrbProps {
   lookDir: React.RefObject<THREE.Vector3>;
   /** Sürükleme sonrası yanlışlıkla tıklamayı engellemek için. */
   wasDrag: () => boolean;
-  onSelect: (memory: Memory) => void;
+  onSelect: (id: number) => void;
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, onSelect }: OrbProps) {
+// Tüm küreler aynı üç geometriyi paylaşır (her küre için ayrı geometri üretmek yerine)
+const GEO = {
+  inner: new THREE.SphereGeometry(SPHERE_RADIUS * 0.97, SPHERE_SEGMENTS.body, SPHERE_SEGMENTS.body),
+  body: new THREE.SphereGeometry(SPHERE_RADIUS, SPHERE_SEGMENTS.body, SPHERE_SEGMENTS.body),
+  glow: new THREE.SphereGeometry(SPHERE_RADIUS * 1.55, SPHERE_SEGMENTS.glow, SPHERE_SEGMENTS.glow),
+};
+
+function OrbImpl({ memory, index, total, selected, dimmed, lookDir, wasDrag, onSelect }: OrbProps) {
   const groupRef = useRef<THREE.Group>(null);
   const focus = useRef(0); // 0 → serbest, 1 → kameraya yaklaşmış
   const scale = useRef(1);
@@ -114,7 +121,7 @@ export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, 
   function handleClick(e: ThreeEvent<MouseEvent>) {
     if (wasDrag()) return;
     e.stopPropagation();
-    onSelect(memory);
+    onSelect(memory.id);
   }
 
   return (
@@ -123,7 +130,7 @@ export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, 
         <>
           {innerUniforms && (
             <mesh renderOrder={1}>
-              <sphereGeometry args={[SPHERE_RADIUS * 0.97, 64, 64]} />
+              <primitive object={GEO.inner} attach="geometry" />
               <shaderMaterial
                 ref={innerRef}
                 uniforms={innerUniforms}
@@ -136,7 +143,7 @@ export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, 
             </mesh>
           )}
           <mesh renderOrder={2} onClick={handleClick}>
-            <sphereGeometry args={[SPHERE_RADIUS, 64, 64]} />
+            <primitive object={GEO.body} attach="geometry" />
             <shaderMaterial
               ref={glassRef}
               uniforms={glassUniforms}
@@ -151,7 +158,7 @@ export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, 
         </>
       ) : (
         <mesh onClick={handleClick}>
-          <sphereGeometry args={[SPHERE_RADIUS, 64, 64]} />
+          <primitive object={GEO.body} attach="geometry" />
           <meshStandardMaterial
             color={color}
             emissive={color}
@@ -162,7 +169,7 @@ export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, 
         </mesh>
       )}
       <mesh raycast={() => null}>
-        <sphereGeometry args={[SPHERE_RADIUS * 1.55, 64, 64]} />
+        <primitive object={GEO.glow} attach="geometry" />
         <shaderMaterial
           ref={glowRef}
           uniforms={glowUniforms}
@@ -177,3 +184,6 @@ export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, 
     </group>
   );
 }
+
+/** Seçim değişince yalnızca ilgili küreler yeniden çizilsin. */
+export const Orb = memo(OrbImpl);

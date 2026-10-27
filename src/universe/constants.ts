@@ -26,6 +26,8 @@ export const BLOOM = {
   intensity: 0.9,
   /** Parlamanın yayılma mesafesi (0-1). */
   radius: 0.75,
+    /** Bulanıklık seviyesi sayısı. Düşük = daha hızlı. */
+  levels: 5,
 } as const;
 
 export const VIGNETTE = { offset: 0.35, darkness: 0.55 } as const;
@@ -46,6 +48,36 @@ export const MILKY_WAY_NORMAL: [number, number, number] = [0.3, 0.9, 0.2];
 /** Yıldızların kaçta kaçı Samanyolu bandında yoğunlaşsın (0-1). */
 export const MILKY_WAY_STAR_SHARE = 0.4;
 /** Nebula bulutlarının parlaklığı. 0 = yok. Çok parlak gelirse 0.3'e indir. */
-export const NEBULA = { intensity: 0.5 } as const;
+export const NEBULA = { intensity: 0.5, bakeWidth: 2048 } as const;
 /** Kameranın yavaş süzülmesi: genlik (birim) ve hız çarpanı. 0 genlik = sabit kamera. */
 export const DRIFT = { amplitude: 6, speed: 1 } as const;
+
+
+
+/** Performans ayarları. */
+/** Fotoğraf dokusunun kenar uzunluğu (px). Küçük = az GPU belleği. */
+export const PHOTO_TEXTURE_SIZE = 384;
+/** Küre ağı çözünürlüğü. Tüm küreler aynı geometriyi paylaşır. */
+export const SPHERE_SEGMENTS = { body: 48, glow: 32 } as const;
+/**
+ * Otomatik kalite kademeleri (düşükten yükseğe). FPS düşerse sırayla bir alta iner.
+ * dpr = çizim çözünürlüğü çarpanı (cihaz oranıyla sınırlanır).
+ */
+export const QUALITY_TIERS = [
+  { dpr: 0.75, bloom: false },
+  { dpr: 1, bloom: false },
+  { dpr: 1, bloom: true },
+  { dpr: 1.5, bloom: true },
+] as const;
+export const QUALITY = {
+  /** Açılıştaki shader derleme takılmasını saymamak için bekleme (sn). */
+  warmupSeconds: 2,
+  /** FPS bu süre boyunca ortalanır (sn). */
+  sampleSeconds: 2,
+  /** Bunun altı "yavaş" sayılır. */
+  lowFps: 45,
+  /** Art arda kaç yavaş ölçüm bir kademe düşürür. */
+  badWindows: 2,
+  /** true: konsola FPS ve kademe yazar. */
+  debug: false,
+} as const;

@@ -183,23 +183,25 @@ export const starFragment = /* glsl */ `
 `;
 
 
-/** Arka plan gökyüzü: derin uzay tabanı + nebula bulutları + Samanyolu bandı. */
-export const nebulaVertex = /* glsl */ `
-  varying vec3 vDir;
+/**
+ * Gökyüzü iki aşamalı: nebula shader'ı AĞIR olduğu için açılışta BİR KEZ bir dokuya
+ * çizilir (bake); her karede yalnızca bu doku okunur (çok ucuz).
+ */
+export const nebulaBakeVertex = /* glsl */ `
+  varying vec2 vUv;
   void main() {
-    vDir = position;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
   }
 `;
 
-export const nebulaFragment = /* glsl */ `
-  uniform float uTime;
+export const nebulaBakeFragment = /* glsl */ `
   uniform float uIntensity;
   uniform vec3  uBandNormal;
   uniform vec3  uColA;
   uniform vec3  uColB;
   uniform vec3  uColC;
-  varying vec3  vDir;
+  varying vec2  vUv;
 
   float hash(vec3 p) {
     return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
@@ -218,7 +220,7 @@ export const nebulaFragment = /* glsl */ `
   float fbm(vec3 p) {
     float v = 0.0;
     float a = 0.5;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
       v += a * vnoise(p);
       p = p * 2.03 + vec3(1.7, 9.2, 3.1);
       a *= 0.5;
@@ -227,13 +229,15 @@ export const nebulaFragment = /* glsl */ `
   }
 
   void main() {
-    vec3  d = normalize(vDir);
-    float t = uTime * 0.003;
+    // Eşdikdörtgen (equirectangular) doku → yön vektörü
+    float lon = (vUv.x * 2.0 - 1.0) * 3.14159265;
+    float lat = (vUv.y * 2.0 - 1.0) * 1.5707963;
+    vec3  d   = vec3(cos(lat) * sin(lon), sin(lat), cos(lat) * cos(lon));
 
     // Bulutlar: alan bükmeli (domain-warped) gürültü
     vec3  p    = d * 2.4;
-    float warp = fbm(p * 1.3 + vec3(7.0, t, 3.0));
-    float n    = fbm(p + warp * 2.2 + vec3(0.0, t, 0.0));
+    float warp = fbm(p * 1.3 + vec3(7.0, 0.0, 3.0));
+    float n    = fbm(p + warp * 2.2);
     float dens = smoothstep(0.48, 0.88, n);
 
     float tint  = fbm(d * 1.6 + vec3(11.0));
@@ -253,7 +257,30 @@ export const nebulaFragment = /* glsl */ `
     col *= 1.0 - lane * 0.65;
     col += vec3(0.0, 0.004, 0.012) * (1.0 - abs(d.y));
 
-    // Dithering: koyu geçişlerdeki bant (banding) çizgilerini yok eder
+    gl_FragColor = vec4(max(col, 0.0), 1.0);
+  }
+`;
+
+/** Gökyüzü küresi: hazır dokuyu okur + ekran-uzayı dithering (banding'i önler). */
+export const skyVertex = /* glsl */ `
+  varying vec3 vDir;
+  void main() {
+    vDir = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+export const skyFragment = /* glsl */ `
+  uniform sampler2D uSky;
+  uniform float     uTime;
+  varying vec3      vDir;
+
+  void main() {
+    vec3 d  = normalize(vDir);
+    vec2 uv = vec2(atan(d.x, d.z) * 0.15915494 + 0.5,
+                   asin(clamp(d.y, -1.0, 1.0)) * 0.31830989 + 0.5);
+    vec3 col = texture2D(uSky, uv).rgb;
+
     float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime) * 43758.5453);
     col += (dither - 0.5) * (2.0 / 255.0);
 

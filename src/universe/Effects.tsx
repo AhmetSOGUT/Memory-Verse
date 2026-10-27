@@ -4,9 +4,10 @@ import { BLOOM, VIGNETTE } from "./constants";
 /** Sahne sonrası efektler: parlama (bloom) + hafif kenar kararması. */
 export function Effects() {
   return (
-    <EffectComposer multisampling={4}>
+    <EffectComposer multisampling={0}>
       <Bloom
         mipmapBlur
+        levels={BLOOM.levels}
         luminanceThreshold={BLOOM.threshold}
         luminanceSmoothing={BLOOM.smoothing}
         intensity={BLOOM.intensity}
