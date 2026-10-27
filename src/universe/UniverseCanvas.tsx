@@ -5,7 +5,8 @@ import type { Memory } from "../types";
 import { BACKGROUND_COLOR, FOV_DEFAULT } from "./constants";
 import { CameraRig } from "./CameraRig";
 import { Orb } from "./Orb";
-import { Nebula, Stars } from "./Stars";
+import { NebulaSky, SpaceDust, Stars } from "./Stars";
+import { Effects } from "./Effects";
 
 interface UniverseCanvasProps {
   memories: Memory[];
@@ -24,7 +25,7 @@ export default function UniverseCanvas({ memories, selectedId, onSelect, onDesel
       style={{ touchAction: "none" }}
       flat // ACES tone mapping kapalı — orijinal renklerle birebir aynı
       dpr={[1, 2]}
-      gl={{ antialias: true, alpha: false }}
+      gl={{ antialias: false, alpha: false }}
       camera={{ fov: FOV_DEFAULT, near: 0.1, far: 1000, position: [0, 0, 0] }}
       onPointerMissed={() => { if (!dragState.current.moved) onDeselect(); }}
     >
@@ -35,8 +36,8 @@ export default function UniverseCanvas({ memories, selectedId, onSelect, onDesel
       <pointLight color={0x6644ff} intensity={1.0} distance={150} position={[-50, -20, -40]} />
       <pointLight color={0xff66aa} intensity={0.8} distance={120} position={[0, -50, 50]} />
 
-      <Stars />
-      <Nebula />
+      <NebulaSky />
+      <SpaceDust />
 
       {memories.map((memory, i) => (
         <Orb
@@ -51,7 +52,7 @@ export default function UniverseCanvas({ memories, selectedId, onSelect, onDesel
           onSelect={(m) => onSelect(m.id)}
         />
       ))}
-
+      <Effects />
       <CameraRig autoRotate={selectedId === null} lookDir={lookDir} dragState={dragState} />
     </Canvas>
   );

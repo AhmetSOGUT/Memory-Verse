@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { createCircleTexture, createStarGeometry, createNebulaGeometries } from "./generate";
-import { starFragment, starVertex } from "./shaders";
+import { MILKY_WAY_NORMAL, NEBULA } from "./constants";
+import {
+  createCircleTexture, createDustGeometry, createStarGeometry, pickNebulaPalette,
+} from "./generate";
+import {
+  dustFragment, dustVertex, nebulaFragment, nebulaVertex, starFragment, starVertex,
+} from "./shaders";
 
+/** Yıldız alanı: tek Points nesnesi, GPU'da titreşir. */
 export function Stars() {
   const matRef = useRef<THREE.ShaderMaterial>(null);
   const { geometry, uniforms } = useMemo(
@@ -41,47 +47,66 @@ export function Stars() {
   );
 }
 
-export function Nebula() {
-  const { geometries, material, texture } = useMemo(() => {
-    const texture = createCircleTexture(128);
-    const material = new THREE.PointsMaterial({
-      size: 30,
-      map: texture,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.05,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      sizeAttenuation: true,
-      alphaTest: 0.001,
-    });
-    return { geometries: createNebulaGeometries(), material, texture };
+/** Arka plan: nebula bulutları + Samanyolu bandı (tek shader'lı dev küre). */
+export function NebulaSky() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const uniforms = useMemo(() => {
+    const [a, b, c] = pickNebulaPalette();
+    return {
+      uTime: { value: 0 },
+      uIntensity: { value: NEBULA.intensity },
+      uBandNormal: { value: new THREE.Vector3(...MILKY_WAY_NORMAL).normalize() },
+      uColA: { value: a },
+      uColB: { value: b },
+      uColC: { value: c },
+    };
   }, []);
 
-  useFrame(({ scene, clock }) => {
-    const group = scene.getObjectByName("nebula");
-    if (!group) return;
-    const t = clock.elapsedTime;
-    group.children.forEach((child, i) => {
-      child.rotation.y = t * (0.003 + i * 0.0008);
-      child.rotation.x = t * (0.001 + i * 0.0004);
-    });
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.elapsedTime;
   });
 
-  useEffect(
-    () => () => {
-      texture.dispose();
-      material.dispose();
-      geometries.forEach((g) => g.dispose());
-    },
-    [geometries, material, texture],
+  return (
+    <mesh renderOrder={-10} frustumCulled={false}>
+      <sphereGeometry args={[900, 48, 32]} />
+      <shaderMaterial
+        ref={matRef}
+        uniforms={uniforms}
+        vertexShader={nebulaVertex}
+        fragmentShader={nebulaFragment}
+        side={THREE.BackSide}
+        depthWrite={false}
+        depthTest={false}
+      />
+    </mesh>
+  );
+}
+
+/** Kameraya yakın süzülen toz: hareket ve derinlik hissini en çok bu verir. */
+export function SpaceDust() {
+  const matRef = useRef<THREE.ShaderMaterial>(null);
+  const { geometry, uniforms } = useMemo(
+    () => ({ geometry: createDustGeometry(), uniforms: { uTime: { value: 0 } } }),
+    [],
   );
 
+  useFrame(({ clock }) => {
+    if (matRef.current) matRef.current.uniforms.uTime.value = clock.elapsedTime;
+  });
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
   return (
-    <group name="nebula">
-      {geometries.map((geo, i) => (
-        <points key={i} geometry={geo} material={material} frustumCulled={false} />
-      ))}
-    </group>
+    <points geometry={geometry} frustumCulled={false}>
+      <shaderMaterial
+        ref={matRef}
+        uniforms={uniforms}
+        vertexShader={dustVertex}
+        fragmentShader={dustFragment}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
   );
 }

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Memory } from "../types";
-import { FOCUS_DISTANCE, ORB_COLORS, SPHERE_RADIUS } from "./constants";
+import {
+  FOCUS_DISTANCE, GLASS_SHEEN, GLASS_STRENGTH, GLOW_STRENGTH, ORB_COLORS, SPHERE_RADIUS,
+} from "./constants";
 import { loadPhotoTexture, orbPosition } from "./generate";
 import {
   glassFragment, glassVertex, glowFragment, glowVertex, innerFragment, innerVertex,
@@ -51,8 +53,19 @@ export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, 
   }, [memory.image]);
 
   // Uniform nesneleri (materyaller JSX'te; zaman ref üzerinden güncellenir)
-  const glowUniforms = useMemo(() => ({ uColor: { value: color }, uTime: { value: 0 } }), [color]);
-  const glassUniforms = useMemo(() => ({ uColor: { value: color }, uTime: { value: 0 } }), [color]);
+  const glowUniforms = useMemo(
+    () => ({ uColor: { value: color }, uTime: { value: 0 }, uStrength: { value: GLOW_STRENGTH } }),
+    [color],
+  );
+  const glassUniforms = useMemo(
+    () => ({
+      uColor: { value: color },
+      uTime: { value: 0 },
+      uStrength: { value: GLASS_STRENGTH },
+      uSheen: { value: GLASS_SHEEN },
+    }),
+    [color],
+  );
   const innerUniforms = useMemo(
     () => (photo ? { uColor: { value: color }, uTime: { value: 0 }, uTex: { value: photo } } : null),
     [color, photo],
@@ -63,7 +76,7 @@ export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, 
 
   const target = useMemo(() => new THREE.Vector3(), []);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera }, delta) => {
     const grp = groupRef.current;
     if (!grp) return;
     const t = clock.elapsedTime;
@@ -83,7 +96,11 @@ export function Orb({ memory, index, total, selected, dimmed, lookDir, wasDrag, 
     const floatY = base[1] + Math.sin(t * (0.35 + index * 0.06) + index * 1.4) * 0.8;
     const f = focus.current;
     const dir = lookDir.current;
-    target.set(dir.x * FOCUS_DISTANCE, dir.y * FOCUS_DISTANCE - 1.5, dir.z * FOCUS_DISTANCE);
+    target.set(
+      camera.position.x + dir.x * FOCUS_DISTANCE,
+      camera.position.y + dir.y * FOCUS_DISTANCE - 1.5,
+      camera.position.z + dir.z * FOCUS_DISTANCE,
+    );
 
     grp.position.set(
       lerp(base[0], target.x, f),

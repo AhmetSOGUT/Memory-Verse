@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { FOV_MAX, FOV_MIN } from "./constants";
+import { DRIFT, FOV_MAX, FOV_MIN } from "./constants";
 
 interface CameraRigProps {
   /** Seçili küre yokken kamera yavaşça döner. */
@@ -79,7 +79,7 @@ export function CameraRig({ autoRotate, lookDir, dragState }: CameraRigProps) {
     };
   }, [camera, gl, dragState]);
 
-  useFrame((_, delta) => {
+  useFrame(({ clock }, delta) => {
     const st = s.current;
     const k = Math.min(delta * 60, 3); // 60 fps'e normalize
 
@@ -94,7 +94,14 @@ export function CameraRig({ autoRotate, lookDir, dragState }: CameraRigProps) {
     const ly = Math.sin(st.pitch);
     const lz = Math.cos(st.yaw) * Math.cos(st.pitch);
     lookDir.current.set(lx, ly, lz);
-    camera.lookAt(lx * 100, ly * 100, lz * 100);
+     // Çok yavaş süzülme: yakın yıldızlar uzaktakilere göre kayar → derinlik
+    const t = clock.elapsedTime * DRIFT.speed;
+    camera.position.set(
+      Math.sin(t * 0.07) * DRIFT.amplitude,
+      Math.sin(t * 0.05 + 1.3) * DRIFT.amplitude * 0.5,
+      Math.sin(t * 0.06 + 2.1) * DRIFT.amplitude,
+    );
+    camera.lookAt(camera.position.x + lx * 100, camera.position.y + ly * 100, camera.position.z + lz * 100);
   });
 
   return null;

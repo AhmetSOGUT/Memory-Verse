@@ -1,6 +1,5 @@
 import * as THREE from "three";
-import { STAR_COUNT } from "./constants";
-
+import { MILKY_WAY_NORMAL, MILKY_WAY_STAR_SHARE, STAR_COUNT } from "./constants";
 // Rastgele veri üretimi bileşenlerin dışında tutulur (render saf kalsın).
 
 /** Tohumlu rastgele sayı üreteci — aynı tohum, aynı gökyüzü. */
@@ -33,6 +32,8 @@ export function createCircleTexture(size = 64): THREE.CanvasTexture {
 
 export function createStarGeometry(seed = 1337): THREE.BufferGeometry {
   const rand = mulberry32(seed);
+  const bandNormal = new THREE.Vector3(...MILKY_WAY_NORMAL).normalize();
+  const dir = new THREE.Vector3();
   const pos = new Float32Array(STAR_COUNT * 3);
   const col = new Float32Array(STAR_COUNT * 3);
   const size = new Float32Array(STAR_COUNT);
@@ -41,9 +42,15 @@ export function createStarGeometry(seed = 1337): THREE.BufferGeometry {
     const radius = 40 + rand() * 260;
     const theta = rand() * Math.PI * 2;
     const phi = Math.acos(2 * rand() - 1);
-    pos[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-    pos[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-    pos[i * 3 + 2] = radius * Math.cos(phi);
+    dir.set(Math.sin(phi) * Math.cos(theta), Math.sin(phi) * Math.sin(theta), Math.cos(phi));
+
+    // Yıldızların bir kısmını Samanyolu düzlemine doğru sıkıştır
+    if (rand() < MILKY_WAY_STAR_SHARE) {
+      dir.addScaledVector(bandNormal, -dir.dot(bandNormal) * 0.88).normalize();
+    }
+    pos[i * 3] = dir.x * radius;
+    pos[i * 3 + 1] = dir.y * radius;
+    pos[i * 3 + 2] = dir.z * radius;
 
     const rn = rand();
     const c: [number, number, number] =
@@ -64,54 +71,33 @@ export function createStarGeometry(seed = 1337): THREE.BufferGeometry {
   return geo;
 }
 
-const NEBULA_PALETTES: [number, number, number][] = [
-  [0.55, 0.15, 0.9], [0.95, 0.25, 0.55], [0.15, 0.45, 1.0], [1.0, 0.35, 0.1],
-  [0.05, 0.75, 0.7], [0.7, 0.2, 1.0], [1.0, 0.6, 0.1], [0.1, 0.8, 0.4],
-];
-
-/** Her açılışta farklı renkte 2 nebula bulutu (özellikle rastgele). */
-export function createNebulaGeometries(): THREE.BufferGeometry[] {
-  const shuffled = [...NEBULA_PALETTES].sort(() => Math.random() - 0.5);
-  const result: THREE.BufferGeometry[] = [];
-
-  for (let ni = 0; ni < 2; ni++) {
-    const [r, g, b] = shuffled[ni];
-    const pos: number[] = [];
-    const col: number[] = [];
-
-    const angle = ni * Math.PI + Math.random() * 0.5;
-    const elev = (Math.random() - 0.5) * 0.35;
-    const dist = 580 + Math.random() * 120;
-    const cx = dist * Math.cos(elev) * Math.cos(angle);
-    const cy = dist * Math.sin(elev) * 0.5;
-    const cz = dist * Math.cos(elev) * Math.sin(angle);
-    const spread = 130 + Math.random() * 50;
-
-    for (let i = 0; i < 160; i++) {
-      const u = Math.random();
-      const th = Math.random() * Math.PI * 2;
-      const ph = (Math.random() - 0.5) * Math.PI;
-      const rr = spread * Math.sqrt(-2 * Math.log(Math.max(u, 0.0001)));
-      pos.push(
-        cx + rr * Math.cos(ph) * Math.cos(th),
-        cy + rr * Math.sin(ph) * 0.4,
-        cz + rr * Math.cos(ph) * Math.sin(th),
-      );
-      const br = 0.3 + Math.random() * 0.7;
-      const vary = (Math.random() - 0.5) * 0.1;
-      col.push(
-        Math.min(1, r * br + vary),
-        Math.min(1, g * br),
-        Math.min(1, b * br - vary),
-      );
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-    result.push(geo);
+/** Kameranın çevresinde süzülen uzay tozu (±40 birimlik küp). */
+export function createDustGeometry(count = 450): THREE.BufferGeometry {
+  const rand = mulberry32(4242);
+  const pos = new Float32Array(count * 3);
+  const phase = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    pos[i * 3] = (rand() - 0.5) * 80;
+    pos[i * 3 + 1] = (rand() - 0.5) * 80;
+    pos[i * 3 + 2] = (rand() - 0.5) * 80;
+    phase[i] = rand();
   }
-  return result;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("aPhase", new THREE.BufferAttribute(phase, 1));
+  return geo;
+}
+
+const NEBULA_PALETTES = [
+  ["#5b2a9e", "#1f5fbf", "#c2306b"], // mor · mavi · magenta
+  ["#0f8f8a", "#2f4fbf", "#7a3fc2"], // turkuaz · mavi · menekşe
+  ["#c25a1f", "#b8326a", "#3a2f9e"], // turuncu · gül · indigo
+] as const;
+
+/** Her açılışta üç paletten biri (özellikle rastgele). */
+export function pickNebulaPalette(): [THREE.Color, THREE.Color, THREE.Color] {
+  const p = NEBULA_PALETTES[Math.floor(Math.random() * NEBULA_PALETTES.length)];
+  return [new THREE.Color(p[0]), new THREE.Color(p[1]), new THREE.Color(p[2])];
 }
 
 /** Fotoğrafı kare kırpıp küre dokusuna çevirir. */
