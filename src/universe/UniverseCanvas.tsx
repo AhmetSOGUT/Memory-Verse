@@ -6,6 +6,7 @@ import { BACKGROUND_COLOR, FOV_DEFAULT, QUALITY_TIERS } from "./constants";
 import { AdaptiveQuality } from "./AdaptiveQuality";
 import { CameraRig } from "./CameraRig";
 import { Effects } from "./Effects";
+import { Meteors } from "./Meteors";
 import { Orb } from "./Orb";
 import { NebulaSky, SpaceDust, Stars } from "./Stars";
 
@@ -46,6 +47,7 @@ export default function UniverseCanvas({ memories, selectedId, onSelect, onDesel
       <Stars />
       <NebulaSky />
       <SpaceDust />
+      <Meteors />
 
       {memories.map((memory, i) => (
         <Orb

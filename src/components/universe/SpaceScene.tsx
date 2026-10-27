@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import type { Memory } from "../../types";
 import OrbPanel from "./OrbPanel";
-import ShootingStars from "./ShootingStars";
+
 
 // Three.js ayrı pakete bölünür; timeline açılırken yüklenmez.
 const UniverseCanvas = lazy(() => import("../../universe/UniverseCanvas"));
@@ -40,8 +40,6 @@ export default function SpaceScene({ isOpen, onClose, memories }: SpaceSceneProp
           </Suspense>
         )}
       </div>
-
-      {isOpen && <ShootingStars />}
 
       <div className="space-ui">
         <h2 className="space-title">Anı Evreni</h2>

@@ -81,3 +81,24 @@ export const QUALITY = {
   /** true: konsola FPS ve kademe yazar. */
   debug: false,
 } as const;
+
+
+/** Kayan yıldızlar (meteorlar). Aralıklar [en az, en çok]. */
+export const METEORS = {
+  /** Aynı anda ekranda en fazla kaç tane olabilir. */
+  max: 3,
+  /** İki kayan yıldız arası bekleme (sn). */
+  gap: [4, 12],
+  /** Kameradan uzaklık (birim). */
+  distance: [190, 260],
+  /** Hız (birim/sn). */
+  speed: [120, 200],
+  /** Yaşam süresi (sn). */
+  duration: [0.8, 1.4],
+  /** Kuyruk uzunluğu (birim). */
+  length: [45, 85],
+  /** Çizginin yarı kalınlığı (birim). */
+  width: [0.35, 0.6],
+  /** İlk kayan yıldız en erken kaç saniye sonra çıksın. */
+  firstDelay: 2.5,
+} as const;

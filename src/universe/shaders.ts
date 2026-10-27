@@ -317,3 +317,69 @@ export const dustFragment = /* glsl */ `
     gl_FragColor = vec4(vec3(0.75, 0.85, 1.0), a);
   }
 `;
+
+
+
+/**
+ * Kayan yıldız: tek çizimde tüm meteorlar. Her meteor bir şerit (ribbon); şeridi
+ * kameraya çevirme işi köşe shader'ında yapılır, CPU'ya iş kalmaz.
+ */
+export const meteorVertex = (count: number) => /* glsl */ `
+  attribute float aSlot;   // hangi meteor
+  attribute vec2  aCorner; // x: baş(-0.04) → kuyruk(1), y: yan (-1 / +1)
+  uniform vec3 uHead[${count}];
+  uniform vec3 uDir[${count}];
+  uniform vec4 uParams[${count}]; // x: ömür 0..1 (<0 = pasif), y: kuyruk boyu, z: yarı kalınlık, w: parlaklık
+  varying vec2  vUv;
+  varying vec2  vWorld;
+  varying float vFade;
+
+  void main() {
+    int   i   = int(aSlot + 0.5);
+    vec4  prm = uParams[i];
+    float u   = prm.x;
+    float on  = step(0.0, u);
+
+    // Hızlı belirir, yavaş söner; sönerken kuyruk kısalır
+    float fadeIn  = smoothstep(0.0, 0.08, u);
+    float fadeOut = 1.0 - smoothstep(0.55, 1.0, u);
+    float len     = prm.y * (0.35 + 0.65 * fadeOut);
+
+    vec3 pos   = uHead[i] - uDir[i] * len * aCorner.x;
+    vec3 toCam = normalize(cameraPosition - pos);
+    vec3 s     = cross(uDir[i], toCam);
+    vec3 side  = s / max(length(s), 0.0001);
+
+    // Baş geniş (parlak çekirdek), kuyruk ince
+    float w = prm.z * mix(3.2, 0.5, smoothstep(0.0, 0.3, max(aCorner.x, 0.0))) * on;
+    pos += side * aCorner.y * w;
+
+    vUv    = aCorner;
+    vWorld = vec2(aCorner.x * len, aCorner.y * w);
+    vFade  = fadeIn * fadeOut * prm.w * on;
+    gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);
+  }
+`;
+
+export const meteorFragment = /* glsl */ `
+  varying vec2  vUv;
+  varying vec2  vWorld;
+  varying float vFade;
+
+  void main() {
+    if (vFade < 0.002) discard;
+
+    float xt     = clamp(vUv.x, 0.0, 1.0);
+    float across = exp(-vUv.y * vUv.y * 3.0);
+    float tail   = pow(1.0 - xt, 2.2) * smoothstep(-0.04, 0.0, vUv.x);
+
+    // Baş: dünya biriminde yuvarlak parlama
+    float head = exp(-dot(vWorld, vWorld) * 0.9);
+
+    // Sıcak baş → soğuk mavi kuyruk
+    vec3 tailCol = mix(vec3(1.0, 0.82, 0.55), vec3(0.45, 0.70, 1.0), smoothstep(0.0, 0.8, xt));
+    vec3 col = tailCol * tail * across * 0.9 + vec3(1.0, 0.97, 0.92) * head * 1.8;
+
+    gl_FragColor = vec4(col, vFade);
+  }
+`;
