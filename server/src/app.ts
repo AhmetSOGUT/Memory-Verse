@@ -1,12 +1,25 @@
+import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
+import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import { ZodError } from "zod";
+import { registerAuth } from "./authRoutes.js";
+import { config } from "./config.js";
 import type { DB } from "./db.js";
 import { registerMemoryRoutes } from "./memories.js";
+import { PasswordHasher } from "./passwords.js";
 import { registerPhotoRoutes } from "./photoRoutes.js";
 import { PhotoStore } from "./photoStore.js";
 
-export function buildApp(db: DB, options: { photosDir: string; logger?: boolean }) {
+export interface AppOptions {
+  photosDir: string;
+  logger?: boolean;
+  /** scrypt maliyeti; yalnızca testlerde düşürülür. */
+  hashCost?: number;
+  secureCookies?: boolean;
+}
+
+export function buildApp(db: DB, options: AppOptions) {
   const app = Fastify({
     logger: options.logger ?? false,
     bodyLimit: 64 * 1024, // JSON gövdesi en fazla 64 KB (fotoğraflar multipart ile, aşağıdaki sınırlarla)
@@ -33,9 +46,24 @@ export function buildApp(db: DB, options: { photosDir: string; logger?: boolean 
     return reply.status(status).send({ error: (error as Error).message });
   });
 
-  app.get("/api/health", async () => ({ ok: true }));
-  registerMemoryRoutes(app, db, photos);
-  registerPhotoRoutes(app, db, photos);
+  // Her API yanıtı özeldir: önbelleğe alınmasın, çerçeveye gömülmesin
+  app.addHook("onSend", async (_req, reply) => {
+    if (!reply.hasHeader("cache-control")) reply.header("Cache-Control", "no-store");
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("X-Frame-Options", "DENY");
+    reply.header("Referrer-Policy", "no-referrer");
+  });
+
+  app.register(cookie);
+  app.register(rateLimit, { global: false });
+
+  // Bu kapsamdaki her rota giriş ister (açıkça `public` işaretlenenler hariç)
+  const hasher = new PasswordHasher(options.hashCost);
+  app.register(async (secured) => {
+    registerAuth(secured, db, { hasher, secureCookies: options.secureCookies ?? config.secureCookies });
+    registerMemoryRoutes(secured, db, photos);
+    registerPhotoRoutes(secured, db, photos);
+  });
 
   return app;
 }

@@ -2,14 +2,14 @@ import fs from "node:fs";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { DB } from "./db.js";
-import { toApi, type MemoryRow } from "./memories.js";
+import { MEMORY_SELECT, toApi, type MemoryRow } from "./memories.js";
 import { PhotoError, PhotoStore } from "./photoStore.js";
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const nameParams = z.object({ name: z.string().max(100) });
 
 export function registerPhotoRoutes(app: FastifyInstance, db: DB, store: PhotoStore): void {
-  const get = db.prepare<[number], MemoryRow>("SELECT * FROM memories WHERE id = ?");
+  const get = db.prepare<[number], MemoryRow>(`${MEMORY_SELECT} WHERE m.id = ?`);
   const setPhoto = db.prepare<[string | null, number]>(
     `UPDATE memories SET photo = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?`,
   );

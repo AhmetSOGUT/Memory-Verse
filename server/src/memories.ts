@@ -11,7 +11,12 @@ export interface MemoryRow {
   photo: string | null;
   created_at: string;
   updated_at: string;
+  author: string | null;
 }
+
+/** Anıyı yazarının görünen adıyla birlikte seçer. */
+export const MEMORY_SELECT =
+  "SELECT m.*, u.display_name AS author FROM memories m LEFT JOIN users u ON u.id = m.created_by";
 
 /** Arayüzün beklediği biçim (src/types.ts'teki Memory ile uyumlu). */
 export function toApi(row: MemoryRow) {
@@ -21,6 +26,7 @@ export function toApi(row: MemoryRow) {
     title: row.title,
     description: row.description,
     image: row.photo ? `/api/photos/${row.photo}` : null,
+    author: row.author,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -41,10 +47,10 @@ const memoryBody = z.strictObject({
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 
 export function registerMemoryRoutes(app: FastifyInstance, db: DB, photos: PhotoStore): void {
-  const list = db.prepare<[], MemoryRow>("SELECT * FROM memories ORDER BY date ASC, id ASC");
-  const get = db.prepare<[number], MemoryRow>("SELECT * FROM memories WHERE id = ?");
-  const insert = db.prepare<[string, string, string]>(
-    "INSERT INTO memories (date, title, description) VALUES (?, ?, ?)",
+  const list = db.prepare<[], MemoryRow>(`${MEMORY_SELECT} ORDER BY m.date ASC, m.id ASC`);
+  const get = db.prepare<[number], MemoryRow>(`${MEMORY_SELECT} WHERE m.id = ?`);
+  const insert = db.prepare<[string, string, string, number]>(
+    "INSERT INTO memories (date, title, description, created_by) VALUES (?, ?, ?, ?)",
   );
   const update = db.prepare<[string, string, string, number]>(
     `UPDATE memories
@@ -58,7 +64,7 @@ export function registerMemoryRoutes(app: FastifyInstance, db: DB, photos: Photo
 
   app.post("/api/memories", async (req, reply) => {
     const body = memoryBody.parse(req.body);
-    const { lastInsertRowid } = insert.run(body.date, body.title, body.description);
+    const { lastInsertRowid } = insert.run(body.date, body.title, body.description, req.user!.id);
     return reply.status(201).send(toApi(get.get(Number(lastInsertRowid))!));
   });
 
