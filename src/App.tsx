@@ -11,16 +11,17 @@ import {
   migrateFromLocalStorage,
 } from "./data/memoryStorage";
 import SpaceScene from "./components/universe/SpaceScene";
+import type { Memory, MemoryInput } from "./types";
 
 function App() {
   const [isSpaceOpen, setIsSpaceOpen] = useState(false);
-  const [memories, setMemories] = useState([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingMemory, setEditingMemory] = useState(null);
+  const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   useEffect(() => {
     migrateFromLocalStorage().then(refreshMemories);
@@ -36,19 +37,19 @@ function App() {
     setIsModalOpen(true);
   }
 
-  function handleEdit(memory) {
+  function handleEdit(memory: Memory) {
     setEditingMemory(memory);
     setIsModalOpen(true);
   }
 
-  function handleDelete(id) {
+  function handleDelete(id: number) {
     setPendingDeleteId(id);
     setConfirmOpen(true);
   }
 
   async function handleConfirmDelete() {
     setConfirmOpen(false);
-    await deleteMemory(pendingDeleteId);
+    if (pendingDeleteId !== null) await deleteMemory(pendingDeleteId);
     setPendingDeleteId(null);
     refreshMemories();
   }
@@ -58,7 +59,7 @@ function App() {
     setPendingDeleteId(null);
   }
 
-  async function handleSave(memory) {
+  async function handleSave(memory: MemoryInput) {
     setIsSaving(true);
     try {
       await saveMemory(memory, editingMemory?.id ?? null);

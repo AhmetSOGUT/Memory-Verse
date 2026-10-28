@@ -1,32 +1,34 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { compressImage } from "../data/memoryStorage";
+import type { Memory, MemoryInput } from "../types";
 
-function MemoryModal({ isOpen, onClose, onSave, editingMemory, isSaving }) {
-  const [date, setDate] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [image, setImage] = useState(null);
+interface MemoryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (memory: MemoryInput) => void | Promise<void>;
+  editingMemory: Memory | null;
+  isSaving: boolean;
+}
+
+/**
+ * Kapalıyken hiçbir şey çizmez; açılınca formu yeni (temiz) bir bileşen olarak kurar.
+ * Böylece form alanlarını elle sıfırlamaya gerek kalmaz.
+ */
+function MemoryModal({ isOpen, ...rest }: MemoryModalProps) {
+  if (!isOpen) return null;
+  return <MemoryForm key={rest.editingMemory?.id ?? "new"} {...rest} />;
+}
+
+function MemoryForm({ onClose, onSave, editingMemory, isSaving }: Omit<MemoryModalProps, "isOpen">) {
+  const [date, setDate] = useState(editingMemory?.date || "");
+  const [title, setTitle] = useState(editingMemory?.title || "");
+  const [description, setDescription] = useState(editingMemory?.description || "");
+  const [image, setImage] = useState<string | null>(editingMemory?.image || null);
   const [isCompressing, setIsCompressing] = useState(false);
-  const [originalSize, setOriginalSize] = useState(null);
-  const [compressedSize, setCompressedSize] = useState(null);
+  const [originalSize, setOriginalSize] = useState<string | null>(null);
+  const [compressedSize, setCompressedSize] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (editingMemory) {
-      setDate(editingMemory.date || "");
-      setTitle(editingMemory.title || "");
-      setDescription(editingMemory.description || "");
-      setImage(editingMemory.image || null);
-    } else {
-      setDate("");
-      setTitle("");
-      setDescription("");
-      setImage(null);
-    }
-    setOriginalSize(null);
-    setCompressedSize(null);
-  }, [editingMemory, isOpen]);
-
-  async function handleFileChange(e) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -34,8 +36,8 @@ function MemoryModal({ isOpen, onClose, onSave, editingMemory, isSaving }) {
     setOriginalSize((file.size / 1024).toFixed(1));
 
     const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const raw = ev.target.result;
+    reader.onload = async () => {
+      const raw = reader.result as string;
       const compressed = await compressImage(raw);
       const compressedBytes = Math.round((compressed.length * 3) / 4);
       setCompressedSize((compressedBytes / 1024).toFixed(1));
@@ -51,12 +53,10 @@ function MemoryModal({ isOpen, onClose, onSave, editingMemory, isSaving }) {
     setCompressedSize(null);
   }
 
-  function handleSubmit(e) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     onSave({ date, title, description, image });
   }
-
-  if (!isOpen) return null;
 
   const busy = isCompressing || isSaving;
 
@@ -94,7 +94,7 @@ function MemoryModal({ isOpen, onClose, onSave, editingMemory, isSaving }) {
           <div style={{ marginBottom: "15px" }}>
             <label>Hikayenizi Yazın</label>
             <textarea
-              rows="4"
+              rows={4}
               placeholder="O an neler hissetmiştin?"
               value={description}
               onChange={(e) => setDescription(e.target.value)}

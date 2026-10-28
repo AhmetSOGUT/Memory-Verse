@@ -1,4 +1,11 @@
-function ConfirmModal({ isOpen, onConfirm, onCancel, message }) {
+interface ConfirmModalProps {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  message?: string;
+}
+
+function ConfirmModal({ isOpen, onConfirm, onCancel, message }: ConfirmModalProps) {
   if (!isOpen) return null;
 
   return (

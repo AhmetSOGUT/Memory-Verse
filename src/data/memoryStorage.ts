@@ -1,15 +1,17 @@
+import type { Memory, MemoryInput } from "../types";
+
 const DB_NAME = "MemoryVerseDB";
 const DB_VERSION = 1;
 const STORE_NAME = "memories";
 
 // ─── IndexedDB helpers ────────────────────────────────────────────────────────
 
-function openDB() {
+function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
 
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
+    req.onupgradeneeded = () => {
+      const db = req.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const store = db.createObjectStore(STORE_NAME, {
           keyPath: "id",
@@ -19,8 +21,8 @@ function openDB() {
       }
     };
 
-    req.onsuccess = (e) => resolve(e.target.result);
-    req.onerror = (e) => reject(e.target.error);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
 }
 
@@ -31,7 +33,7 @@ function openDB() {
  * Max dimension: 1200px, quality: 0.82 (JPEG)
  * Returns a compressed base64 string (or original if not an image).
  */
-export function compressImage(base64, maxDim = 1200, quality = 0.82) {
+export function compressImage(base64: string, maxDim = 1200, quality = 0.82): Promise<string> {
   return new Promise((resolve) => {
     if (!base64 || !base64.startsWith("data:image")) {
       resolve(base64);
@@ -47,7 +49,7 @@ export function compressImage(base64, maxDim = 1200, quality = 0.82) {
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        canvas.getContext("2d").drawImage(img, 0, 0);
+        canvas.getContext("2d")!.drawImage(img, 0, 0);
         resolve(canvas.toDataURL("image/jpeg", quality));
         return;
       }
@@ -63,7 +65,7 @@ export function compressImage(base64, maxDim = 1200, quality = 0.82) {
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
-      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
       resolve(canvas.toDataURL("image/jpeg", quality));
     };
 
@@ -77,14 +79,14 @@ export function compressImage(base64, maxDim = 1200, quality = 0.82) {
 /**
  * Returns all memories sorted by date (oldest first).
  */
-export async function getMemories() {
+export async function getMemories(): Promise<Memory[]> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readonly");
       const req = tx.objectStore(STORE_NAME).index("date").getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = (e) => reject(e.target.error);
+      req.onsuccess = () => resolve((req.result as Memory[]) || []);
+      req.onerror = () => reject(req.error);
     });
   } catch (err) {
     console.error("getMemories error:", err);
@@ -96,7 +98,10 @@ export async function getMemories() {
  * Saves a new memory or updates an existing one (by id).
  * Automatically compresses the image before storing.
  */
-export async function saveMemory(memory, editId = null) {
+export async function saveMemory(
+  memory: MemoryInput & { id?: number },
+  editId: number | null = null,
+): Promise<number | undefined> {
   try {
     // Compress image if present
     if (memory.image) {
@@ -108,7 +113,7 @@ export async function saveMemory(memory, editId = null) {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
 
-      let req;
+      let req: IDBRequest;
       if (editId !== null) {
         req = store.put({ ...memory, id: editId });
       } else {
@@ -116,8 +121,8 @@ export async function saveMemory(memory, editId = null) {
         req = store.add(memWithoutId);
       }
 
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = (e) => reject(e.target.error);
+      req.onsuccess = () => resolve(req.result as number);
+      req.onerror = () => reject(req.error);
     });
   } catch (err) {
     console.error("saveMemory error:", err);
@@ -127,14 +132,14 @@ export async function saveMemory(memory, editId = null) {
 /**
  * Deletes a memory by its IndexedDB id.
  */
-export async function deleteMemory(id) {
+export async function deleteMemory(id: number): Promise<void> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const req = tx.objectStore(STORE_NAME).delete(id);
       req.onsuccess = () => resolve();
-      req.onerror = (e) => reject(e.target.error);
+      req.onerror = () => reject(req.error);
     });
   } catch (err) {
     console.error("deleteMemory error:", err);
@@ -147,19 +152,19 @@ export async function deleteMemory(id) {
  * If old localStorage data exists, migrates it to IndexedDB and clears localStorage.
  * Call this once on app start.
  */
-export async function migrateFromLocalStorage() {
+export async function migrateFromLocalStorage(): Promise<void> {
   const LEGACY_KEY = "memories";
   const raw = localStorage.getItem(LEGACY_KEY);
   if (!raw) return;
 
   try {
-    const old = JSON.parse(raw);
+    const old: unknown = JSON.parse(raw);
     if (!Array.isArray(old) || old.length === 0) {
       localStorage.removeItem(LEGACY_KEY);
       return;
     }
 
-    for (const mem of old) {
+    for (const mem of old as MemoryInput[]) {
       await saveMemory(mem, null);
     }
 
