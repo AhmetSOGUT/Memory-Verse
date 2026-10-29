@@ -1,12 +1,29 @@
-/** Bir anı kaydı (IndexedDB'de saklanan biçim). */
+/** Sunucudan gelen bir anı. */
 export interface Memory {
   id: number;
   date: string;
   title: string;
   description: string;
-  /** base64 data URL — sunucuya geçince dosya URL'si olacak. */
+  /** Fotoğrafın sunucudaki adresi (/api/photos/...); yoksa null. */
   image?: string | null;
+  /** Anıyı ekleyen kişinin görünen adı. */
+  author?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-/** Henüz kaydedilmemiş anı (id veritabanı tarafından verilir). */
-export type MemoryInput = Omit<Memory, "id">;
+/** Formda kullanıcının doldurduğu alanlar (id, fotoğraf ve yazar sunucudan gelir). */
+export type MemoryDraft = Pick<Memory, "date" | "title" | "description">;
+
+/** Kaydederken fotoğrafa ne olacağı. */
+export type PhotoChange =
+  | { kind: "keep" }
+  | { kind: "set"; dataUrl: string }
+  | { kind: "remove" };
+
+/** Giriş yapmış kullanıcı. */
+export interface AuthUser {
+  id: number;
+  username: string;
+  displayName: string;
+}

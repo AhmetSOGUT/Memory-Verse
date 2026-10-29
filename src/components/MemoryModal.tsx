@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { compressImage } from "../data/memoryStorage";
-import type { Memory, MemoryInput } from "../types";
+import { compressImage } from "../lib/image";
+import type { Memory, MemoryDraft, PhotoChange } from "../types";
 
 interface MemoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (memory: MemoryInput) => void | Promise<void>;
+  onSave: (draft: MemoryDraft, photo: PhotoChange) => void | Promise<void>;
   editingMemory: Memory | null;
   isSaving: boolean;
 }
@@ -55,7 +55,11 @@ function MemoryForm({ onClose, onSave, editingMemory, isSaving }: Omit<MemoryMod
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    onSave({ date, title, description, image });
+    // Fotoğrafa ne olacağını, açılıştaki hâline göre belirle
+    const original = editingMemory?.image ?? null;
+    let photo: PhotoChange = { kind: "keep" };
+    if (image !== original) photo = image === null ? { kind: "remove" } : { kind: "set", dataUrl: image };
+    onSave({ date, title, description }, photo);
   }
 
   const busy = isCompressing || isSaving;

@@ -88,10 +88,14 @@ body {
 .space-scene {
     position:fixed; inset:0; background:#010816;
     z-index:1500; overflow:hidden;
-    opacity:0; pointer-events:none; transform:scale(1.02);
-    transition:opacity 0.5s ease, transform 0.5s ease;
+    opacity:0; visibility:hidden; pointer-events:none; transform:scale(1.02);
+    /* visibility kapanışta soluklaşma bittikten sonra devreye girer: kapalıyken içindeki hiçbir şey tıklanamaz/odaklanamaz */
+    transition:opacity 0.5s ease, transform 0.5s ease, visibility 0s linear 0.5s;
 }
-.space-scene--visible { opacity:1; pointer-events:auto; transform:scale(1); }
+.space-scene--visible {
+    opacity:1; visibility:visible; pointer-events:auto; transform:scale(1);
+    transition:opacity 0.5s ease, transform 0.5s ease, visibility 0s linear 0s;
+}
 .space-canvas-container { position:absolute; inset:0; z-index:0; }
 .space-ui {
     position:absolute; top:0; left:0; width:100%; pointer-events:none;
@@ -178,4 +182,63 @@ input[type=file] { cursor:pointer; }
     background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0;
     cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center;
     backdrop-filter:blur(8px);
+}
+
+
+/* ── Giriş, durum ekranları, kullanıcı çubuğu, bildirim ──────────────────── */
+.login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; position:relative; z-index:1; }
+.login-card {
+    width:100%; max-width:400px; padding:40px 34px;
+    background:var(--glass-bg); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+    border:1px solid var(--glass-border); border-radius:30px;
+    box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);
+}
+.login-card h1 {
+    font-family:'Playfair Display',serif; font-size:2.2rem; text-align:center; margin-bottom:8px; font-weight:700;
+    background:linear-gradient(to right,#fff,#ff758c,#fff); background-clip:text; -webkit-background-clip:text;
+    color:transparent; -webkit-text-fill-color:transparent;
+}
+.login-sub { text-align:center; color:var(--text-dim); font-size:0.95rem; margin-bottom:28px; }
+.login-field { margin-bottom:16px; }
+.login-error {
+    background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); color:#fca5a5;
+    padding:10px 14px; border-radius:12px; font-size:0.88rem; margin-bottom:16px;
+}
+.password-wrap { position:relative; }
+.password-wrap input { padding-right:76px; }
+.password-toggle {
+    position:absolute; right:8px; top:50%; transform:translateY(-50%); margin-top:2px;
+    background:transparent; border:none; color:var(--text-dim); font-family:inherit; font-size:0.8rem;
+    cursor:pointer; padding:6px 8px; border-radius:8px;
+}
+.password-toggle:hover { color:white; }
+.primary-btn {
+    width:100%; background:var(--gradient); border:none; color:white; padding:13px; border-radius:12px;
+    font-family:inherit; font-size:1rem; font-weight:600; cursor:pointer; margin-top:6px;
+}
+.primary-btn:disabled { opacity:0.55; cursor:not-allowed; }
+.status-screen {
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:12px; padding:24px; text-align:center; position:relative; z-index:1;
+}
+.status-screen h2 { font-family:'Playfair Display',serif; font-size:1.8rem; }
+.status-screen p { color:var(--text-dim); max-width:420px; }
+.status-btn { width:auto; padding:12px 28px; margin-top:10px; }
+.status-inline { text-align:center; color:var(--text-dim); padding:60px 20px; position:relative; z-index:1; }
+.status-inline--error p { margin-bottom:6px; color:#fca5a5; }
+.user-bar {
+    position:fixed; top:16px; right:16px; z-index:100; display:flex; align-items:center; gap:6px;
+    background:var(--glass-bg); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    border:1px solid var(--glass-border); padding:5px 6px 5px 16px; border-radius:999px; font-size:0.85rem;
+}
+.user-bar__btn {
+    background:rgba(255,255,255,0.1); border:none; color:white; padding:6px 14px; border-radius:999px;
+    font-family:inherit; font-size:0.8rem; cursor:pointer; transition:background 0.2s;
+}
+.user-bar__btn:hover { background:rgba(255,117,140,0.35); }
+.toast {
+    position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:5000;
+    max-width:min(520px,90vw); background:#7f1d1d; border:1px solid #ef4444; color:#fee2e2;
+    padding:14px 20px; border-radius:14px; font-size:0.92rem; cursor:pointer;
+    box-shadow:0 12px 40px rgba(0,0,0,0.5);
 }
