@@ -6,7 +6,14 @@ import { openDatabase } from "./db.js";
 
 fs.mkdirSync(config.dataDir, { recursive: true });
 const db = openDatabase(path.join(config.dataDir, "memory-verse.sqlite"));
-const app = buildApp(db, { logger: true, photosDir: path.join(config.dataDir, "photos") });
+const siteBuilt = fs.existsSync(path.join(config.webRoot, "index.html"));
+const app = buildApp(db, {
+  logger: true,
+  photosDir: path.join(config.dataDir, "photos"),
+  webRoot: siteBuilt ? config.webRoot : undefined,
+  trustProxy: config.trustProxy,
+});
+if (!siteBuilt) app.log.warn(`Derlenmiş site bulunamadı (${config.webRoot}). Önce ana klasörde "npm run build" çalıştır; şimdilik yalnızca API çalışıyor.`);
 
 // Düzgün kapanış: bekleyen istekler bitsin, veritabanı temiz kapansın
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
