@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "dev:server": "npm --prefix server run dev",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
@@ -12,6 +13,8 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@react-three/postprocessing": "^3.2.2",
+    "postprocessing": "^6.39.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "three": "^0.183.2"
@@ -20,11 +23,14 @@
     "@eslint/js": "^9.39.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
     "vite": "^7.3.1"
   }
 }

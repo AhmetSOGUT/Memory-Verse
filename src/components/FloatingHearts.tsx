@@ -2,8 +2,9 @@ import { useEffect } from "react";
 
 function FloatingHearts() {
   useEffect(() => {
-    const container = document.getElementById("hearts");
-    if (!container) return;
+    const found = document.getElementById("hearts");
+    if (!found) return;
+    const container: HTMLElement = found;
 
     function spawnHeart() {
       const heart = document.createElement("div");

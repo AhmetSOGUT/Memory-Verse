@@ -1,6 +1,13 @@
 import { useState } from "react";
+import type { Memory } from "../types";
 
-function MemoryCard({ memory, onEdit, onDelete }) {
+interface MemoryCardProps {
+  memory: Memory;
+  onEdit: (memory: Memory) => void;
+  onDelete: (id: number) => void;
+}
+
+function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
   const [zoomOpen, setZoomOpen] = useState(false);
 
   const formattedDate = new Date(memory.date).toLocaleDateString("tr-TR", {
@@ -64,7 +71,7 @@ function MemoryCard({ memory, onEdit, onDelete }) {
           }}
         >
           <img
-            src={memory.image}
+            src={memory.image ?? undefined}
             alt="Tam ekran"
             onClick={(e) => e.stopPropagation()}
             style={{

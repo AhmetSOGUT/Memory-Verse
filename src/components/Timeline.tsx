@@ -1,7 +1,14 @@
 import MemoryCard from "./MemoryCard";
 import EmptyState from "./EmptyState";
+import type { Memory } from "../types";
 
-function Timeline({ memories, onEdit, onDelete }) {
+interface TimelineProps {
+  memories: Memory[];
+  onEdit: (memory: Memory) => void;
+  onDelete: (id: number) => void;
+}
+
+function Timeline({ memories, onEdit, onDelete }: TimelineProps) {
   return (
     <div className="timeline-container">
       <div className="timeline-line"></div>

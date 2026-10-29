@@ -1,0 +1,29 @@
+{
+  "name": "memory-verse-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "user": "tsx src/cli/users.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/multipart": "^10.1.6",
+    "@fastify/rate-limit": "^11.2.1",
+    "better-sqlite3": "^13.0.3",
+    "fastify": "^5.12.7",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
+
+
