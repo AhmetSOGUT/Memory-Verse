@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { COARSE_QUERY } from "../lib/layout";
 import { createCircleTexture, createDustGeometry, createStarGeometry } from "./generate";
 import { bakeNebulaTexture } from "./sky";
 import {
@@ -51,11 +53,14 @@ export function NebulaSky() {
   const matRef = useRef<THREE.ShaderMaterial>(null);
   const uniforms = useMemo(() => ({ uSky: { value: null as THREE.Texture | null }, uTime: { value: 0 } }), []);
 
+  // Dokunmatik cihazlarda sin() içermeyen hash ile pişir (bkz. shaders.ts); PC'de eski hash
+  const coarse = useMediaQuery(COARSE_QUERY);
+
   useLayoutEffect(() => {
-    const target = bakeNebulaTexture(gl);
+    const target = bakeNebulaTexture(gl, coarse);
     if (matRef.current) matRef.current.uniforms.uSky.value = target.texture;
     return () => target.dispose();
-  }, [gl]);
+  }, [gl, coarse]);
 
   useFrame(({ clock }) => {
     if (matRef.current) matRef.current.uniforms.uTime.value = clock.elapsedTime;

@@ -7,7 +7,7 @@ import { nebulaBakeFragment, nebulaBakeVertex } from "./shaders";
  * Nebula gökyüzünü tek seferlik bir doku olarak çizer (eşdikdörtgen, 2:1).
  * Ağır shader yalnızca burada, açılışta bir kez çalışır.
  */
-export function bakeNebulaTexture(gl: THREE.WebGLRenderer): THREE.WebGLRenderTarget {
+export function bakeNebulaTexture(gl: THREE.WebGLRenderer, robustHash = false): THREE.WebGLRenderTarget {
   const [a, b, c] = pickNebulaPalette();
   const half = gl.extensions.has("EXT_color_buffer_float") || gl.extensions.has("EXT_color_buffer_half_float");
 
@@ -28,6 +28,7 @@ export function bakeNebulaTexture(gl: THREE.WebGLRenderer): THREE.WebGLRenderTar
       uColB: { value: b },
       uColC: { value: c },
     },
+    defines: robustHash ? { ROBUST_HASH: 1 } : {},
     vertexShader: nebulaBakeVertex,
     fragmentShader: nebulaBakeFragment,
     depthTest: false,

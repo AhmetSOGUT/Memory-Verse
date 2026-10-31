@@ -203,9 +203,20 @@ export const nebulaBakeFragment = /* glsl */ `
   uniform vec3  uColC;
   varying vec2  vUv;
 
+  // ROBUST_HASH (dokunmatik cihazlar): telefon GPU'ları büyük argümanlı sin()'i kaba yaklaşımla hesaplar;
+  // bu, dokuda koordinata hizalı keskin dikdörtgen bloklar üretiyordu. sin içermeyen hash bundan etkilenmez.
+  // PC'de eski hash korunur (görünüm birebir aynı kalır).
+  #ifdef ROBUST_HASH
+  float hash(vec3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.zyx + 31.32);
+    return fract((p.x + p.y) * p.z);
+  }
+  #else
   float hash(vec3 p) {
     return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
   }
+  #endif
   float vnoise(vec3 x) {
     vec3 i = floor(x);
     vec3 f = fract(x);
@@ -285,7 +296,8 @@ export const skyFragment = /* glsl */ `
     //  1) Zamana bağlı DEĞİL (sabit desen): kareden kareye değişen gürültü koyu bölgelerde "dalgalanma" gibi görünür.
     //  2) Genlik ekranda görülen sRGB uzayında yarım seviye (±0.5/255). Doğrusal uzayda eklenseydi koyu bölgelerde
     //     gama yüzünden ~10 seviyeye çıkardı.
-    float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+    // Interleaved gradient noise: sin() içermez (telefon GPU'larında güvenilir), ekran-uzayı dither için tasarlanmıştır
+    float dither = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
     vec3  srgb   = pow(max(col, 0.0), vec3(1.0 / 2.2));
     srgb += (dither - 0.5) / 255.0;
     col = pow(max(srgb, 0.0), vec3(2.2));
