@@ -3,7 +3,8 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Memory } from "../types";
 import {
-  FOCUS_DISTANCE, GLASS_SHEEN, GLASS_STRENGTH, GLOW_STRENGTH, ORB_COLORS, SPHERE_RADIUS, SPHERE_SEGMENTS,
+  FOCUS_DISTANCE, GLASS_SHEEN, GLASS_STRENGTH, GLOW_STRENGTH, HIT_RADIUS_FACTOR, ORB_COLORS,
+  SHEET_FOCUS_NDC_Y, SIDE_FOCUS_NDC_X, SPHERE_RADIUS, SPHERE_SEGMENTS,
 } from "./constants";
 import { loadPhotoTexture, orbPosition } from "./generate";
 import {
@@ -22,6 +23,12 @@ interface OrbProps {
   /** Sürükleme sonrası yanlışlıkla tıklamayı engellemek için. */
   wasDrag: () => boolean;
   onSelect: (id: number) => void;
+  /** Dar/dikey ekran: seçili küre alt panelin üstünde kalan alana kayar. */
+  sheet: boolean;
+  /** Yatay dokunmatik ekran: panel sağda durur, seçili küre soldaki boş alana kayar. */
+  side: boolean;
+  /** Parmakla kullanım: küreye vurmayı kolaylaştıran büyük, görünmez dokunma alanı. */
+  bigHit: boolean;
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -31,9 +38,15 @@ const GEO = {
   inner: new THREE.SphereGeometry(SPHERE_RADIUS * 0.97, SPHERE_SEGMENTS.body, SPHERE_SEGMENTS.body),
   body: new THREE.SphereGeometry(SPHERE_RADIUS, SPHERE_SEGMENTS.body, SPHERE_SEGMENTS.body),
   glow: new THREE.SphereGeometry(SPHERE_RADIUS * 1.55, SPHERE_SEGMENTS.glow, SPHERE_SEGMENTS.glow),
+  hit: new THREE.SphereGeometry(SPHERE_RADIUS * HIT_RADIUS_FACTOR, 12, 12),
 };
 
-function OrbImpl({ memory, index, total, selected, dimmed, lookDir, wasDrag, onSelect }: OrbProps) {
+// Kare başına nesne üretmemek için ortak geçici vektörler
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const camRight = new THREE.Vector3();
+const camUp = new THREE.Vector3();
+
+function OrbImpl({ memory, index, total, selected, dimmed, lookDir, wasDrag, onSelect, sheet, side, bigHit }: OrbProps) {
   const groupRef = useRef<THREE.Group>(null);
   const focus = useRef(0); // 0 → serbest, 1 → kameraya yaklaşmış
   const scale = useRef(1);
@@ -96,7 +109,7 @@ function OrbImpl({ memory, index, total, selected, dimmed, lookDir, wasDrag, onS
     // 60 fps'e göre normalize edilmiş yumuşatma (orijinal sabitler 60 fps içindi)
     const k = Math.min(delta * 60, 3);
     focus.current = lerp(focus.current, selected ? 1 : 0, 1 - Math.pow(1 - 0.045, k));
-    const tScale = selected ? 1.45 : dimmed ? 0.6 : 1;
+    const tScale = selected ? (sheet || side ? 1.1 : 1.45) : dimmed ? 0.6 : 1; // telefonda alt panelin üstündeki alana sığsın
     scale.current = lerp(scale.current, tScale, 1 - Math.pow(1 - 0.05, k));
 
     // Süzülme
@@ -108,6 +121,18 @@ function OrbImpl({ memory, index, total, selected, dimmed, lookDir, wasDrag, onS
       camera.position.y + dir.y * FOCUS_DISTANCE - 1.5,
       camera.position.z + dir.z * FOCUS_DISTANCE,
     );
+    if (sheet) {
+      // Kameranın sağ/yukarı eksenleri (bakış yönünden): küreyi ekranda yukarı kaydır, alt panel örtmesin
+      camRight.crossVectors(dir, WORLD_UP).normalize();
+      camUp.crossVectors(camRight, dir);
+      const halfHeight = FOCUS_DISTANCE * Math.tan(THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov / 2));
+      target.addScaledVector(camUp, SHEET_FOCUS_NDC_Y * halfHeight);
+    } else if (side) {
+      camRight.crossVectors(dir, WORLD_UP).normalize();
+      const persp = camera as THREE.PerspectiveCamera;
+      const halfWidth = FOCUS_DISTANCE * Math.tan(THREE.MathUtils.degToRad(persp.fov / 2)) * persp.aspect;
+      target.addScaledVector(camRight, SIDE_FOCUS_NDC_X * halfWidth);
+    }
 
     grp.position.set(
       lerp(base[0], target.x, f),
@@ -166,6 +191,12 @@ function OrbImpl({ memory, index, total, selected, dimmed, lookDir, wasDrag, onS
             roughness={0.2}
             metalness={0.1}
           />
+        </mesh>
+      )}
+      {bigHit && (
+        <mesh onClick={handleClick}>
+          <primitive object={GEO.hit} attach="geometry" />
+          <meshBasicMaterial visible={false} />
         </mesh>
       )}
       <mesh raycast={() => null}>

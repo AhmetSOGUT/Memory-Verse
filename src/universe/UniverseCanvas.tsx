@@ -1,11 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { COARSE_QUERY, COMPACT_QUERY } from "../lib/layout";
 import type { Memory } from "../types";
+import { lookAtFirstOrb } from "./camera";
 import { BACKGROUND_COLOR, FOV_DEFAULT, QUALITY_TIERS } from "./constants";
 import { AdaptiveQuality } from "./AdaptiveQuality";
 import { CameraRig } from "./CameraRig";
 import { Effects } from "./Effects";
+import { orbPosition } from "./generate";
 import { Meteors } from "./Meteors";
 import { Orb } from "./Orb";
 import { NebulaSky, SpaceDust, Stars } from "./Stars";
@@ -21,6 +25,16 @@ export default function UniverseCanvas({ memories, selectedId, onSelect, onDesel
   const lookDir = useRef(new THREE.Vector3(0, 0, 1));
   const dragState = useRef({ moved: false });
   const wasDrag = useMemo(() => () => dragState.current.moved, []);
+
+  // Telefon düzeni (dar/dikey ekran) ve parmakla kullanım: PC'de ikisi de false, davranış aynı kalır
+  const compact = useMediaQuery(COMPACT_QUERY);
+  const coarse = useMediaQuery(COARSE_QUERY);
+  // Telefon düzeninde ya da dokunmatik cihazda açılışta ilk küreye doğru bak (boş gökyüzüyle başlamasın). İlk değer sabit kalır.
+  const [startLook] = useState(() =>
+    (compact || coarse) && memories.length > 0
+      ? lookAtFirstOrb(orbPosition(0, memories.length), window.innerWidth / window.innerHeight)
+      : null,
+  );
 
   // Otomatik kalite: en yüksek kademeden başlar, FPS düşerse iner
   const [tier, setTier] = useState(QUALITY_TIERS.length - 1);
@@ -60,12 +74,15 @@ export default function UniverseCanvas({ memories, selectedId, onSelect, onDesel
           lookDir={lookDir}
           wasDrag={wasDrag}
           onSelect={onSelect}
+          sheet={compact}
+          side={coarse && !compact}
+          bigHit={coarse}
         />
       ))}
 
       {bloom && <Effects />}
 
-      <CameraRig autoRotate={selectedId === null} lookDir={lookDir} dragState={dragState} />
+      <CameraRig autoRotate={selectedId === null} lookDir={lookDir} dragState={dragState} initialLook={startLook} />
     </Canvas>
   );
 }

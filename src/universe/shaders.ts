@@ -281,8 +281,14 @@ export const skyFragment = /* glsl */ `
                    asin(clamp(d.y, -1.0, 1.0)) * 0.31830989 + 0.5);
     vec3 col = texture2D(uSky, uv).rgb;
 
-    float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime) * 43758.5453);
-    col += (dither - 0.5) * (2.0 / 255.0);
+    // Dither: 8 bit çıkışta bantlaşmayı kırar. İKİ ÖNEMLİ NOKTA:
+    //  1) Zamana bağlı DEĞİL (sabit desen): kareden kareye değişen gürültü koyu bölgelerde "dalgalanma" gibi görünür.
+    //  2) Genlik ekranda görülen sRGB uzayında yarım seviye (±0.5/255). Doğrusal uzayda eklenseydi koyu bölgelerde
+    //     gama yüzünden ~10 seviyeye çıkardı.
+    float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+    vec3  srgb   = pow(max(col, 0.0), vec3(1.0 / 2.2));
+    srgb += (dither - 0.5) / 255.0;
+    col = pow(max(srgb, 0.0), vec3(2.2));
 
     gl_FragColor = vec4(max(col, 0.0), 1.0);
   }

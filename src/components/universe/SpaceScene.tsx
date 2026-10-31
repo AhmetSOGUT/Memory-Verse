@@ -48,7 +48,10 @@ export default function SpaceScene({ isOpen, onClose, memories }: SpaceSceneProp
 
       <button className="space-close-btn" onClick={handleClose} aria-label="Evreni kapat">✕</button>
 
-      <p className="space-hint">Sürükle · Kaydır · Kürelere tıkla</p>
+      <p className="space-hint">
+        <span className="hint-mouse">Sürükle · Kaydır · Kürelere tıkla</span>
+        <span className="hint-touch">Sürükle · İki parmakla yakınlaştır · Küreye dokun</span>
+      </p>
 
       {isOpen && selected && (
         <OrbPanel key={selected.id} memory={selected} onClose={() => setSelectedId(null)} />

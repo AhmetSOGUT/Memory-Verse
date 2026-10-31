@@ -15,6 +15,15 @@ export const FOV_MIN = 35;
 export const FOV_MAX = 95;
 export const FOV_DEFAULT = 65;
 
+/** Dikey ekranda görüş açısının çıkabileceği en yüksek değer (aşırı balık gözü olmasın). */
+export const FOV_MAX_PORTRAIT = 100;
+/** Dar/dikey ekranda seçili küre, ekranın dikey ortasından bu kadar yukarı kayar (-1…1); alt panelin üstündeki alana oturur. */
+export const SHEET_FOCUS_NDC_Y = 0.32;
+/** Yatay dokunmatik ekranda (panel sağda) seçili küre, ekranın yatay ortasından bu kadar sola kayar (-1…1). */
+export const SIDE_FOCUS_NDC_X = -0.42;
+/** Dokunmatikte küreye vurmayı kolaylaştıran görünmez dokunma alanı (küre yarıçapının katı). */
+export const HIT_RADIUS_FACTOR = 2;
+
 
 /** Bloom (parlama) ayarları — görünümü buradan ince ayar yapabilirsin. */
 export const BLOOM = {

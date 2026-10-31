@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Memory } from "../types";
+import PhotoViewer from "./PhotoViewer";
+import ScrollText from "./ScrollText";
 
 interface MemoryCardProps {
   memory: Memory;
@@ -7,8 +9,36 @@ interface MemoryCardProps {
   onDelete: (id: number) => void;
 }
 
+/**
+ * Kart ekrana girince `revealed` true olur. Yalnızca telefon düzeninde (main.css) yumuşak belirme için kullanılır;
+ * masaüstü CSS'i bu değere bakmaz, kartlar hep görünür kalır. IntersectionObserver yoksa baştan görünür.
+ */
+function useReveal() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [revealed, setRevealed] = useState(() => typeof IntersectionObserver === "undefined");
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setRevealed(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "0px 0px -6% 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, revealed] as const;
+}
+
 function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
   const [zoomOpen, setZoomOpen] = useState(false);
+  const [cardRef, revealed] = useReveal();
 
   const formattedDate = new Date(memory.date).toLocaleDateString("tr-TR", {
     day: "numeric",
@@ -18,7 +48,7 @@ function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
 
   return (
     <>
-      <div className="memory-card visible">
+      <div className="memory-card visible" ref={cardRef} data-revealed={revealed}>
         <div className="timeline-dot"></div>
 
         <div className="card-content">
@@ -42,7 +72,7 @@ function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
 
           <span className="date-badge">{formattedDate}</span>
           <h2 className="memory-title">{memory.title}</h2>
-          <p className="memory-description">{memory.description}</p>
+          <ScrollText className="memory-description">{memory.description}</ScrollText>
 
           {memory.image && (
             <img
@@ -55,70 +85,7 @@ function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
         </div>
       </div>
 
-      {zoomOpen && (
-        <div
-          onClick={() => setZoomOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.92)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "zoom-out",
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          <img
-            src={memory.image ?? undefined}
-            alt="Tam ekran"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "92vw",
-              maxHeight: "88vh",
-              objectFit: "contain",
-              borderRadius: "16px",
-              boxShadow: "0 40px 80px rgba(0,0,0,0.8)",
-            }}
-          />
-          <button
-            onClick={() => setZoomOpen(false)}
-            style={{
-              position: "fixed",
-              top: "20px",
-              right: "20px",
-              background: "rgba(255,255,255,0.1)",
-              border: "1px solid rgba(255,255,255,0.2)",
-              borderRadius: "50%",
-              color: "white",
-              width: "40px",
-              height: "40px",
-              fontSize: "18px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backdropFilter: "blur(8px)",
-            }}
-          >
-            ✕
-          </button>
-          <p
-            style={{
-              position: "fixed",
-              bottom: "24px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              color: "rgba(255,255,255,0.4)",
-              fontSize: "0.8rem",
-              pointerEvents: "none",
-            }}
-          >
-            Kapatmak için tıkla veya ✕
-          </p>
-        </div>
-      )}
+      {zoomOpen && memory.image && <PhotoViewer src={memory.image} onClose={() => setZoomOpen(false)} />}
     </>
   );
 }

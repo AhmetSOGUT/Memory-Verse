@@ -6,6 +6,11 @@
     --text-main: #ffffff;
     --text-dim: #cbd5e1;
     --gradient: linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%);
+    /* Çentik / alt çubuk payları (telefon); PC'de 0 */
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -142,14 +147,10 @@ input[type=file] { cursor:pointer; }
 .card-content:hover .card-actions { opacity:1; }
 .action-btn { background:rgba(255,255,255,0.1); border:none; color:white; padding:8px; border-radius:50%; cursor:pointer; }
 .empty-state { text-align:center; padding:100px 0; color:var(--text-dim); }
-@media(max-width:768px) {
-    .timeline-line, .timeline-dot { left:20px; }
-    .card-content { width:calc(100% - 60px) !important; margin-left:60px !important; }
-    .header h1 { font-size:2.5rem; }
-}
 
 /* ── Anı Evreni: detay paneli (eski innerHTML paneli yerine) ─────────────── */
 .space-hint { pointer-events:none; }
+.hint-touch { display:none; }
 .orb-panel {
     position:fixed; top:50%; right:3vw; width:360px; max-width:90vw;
     transform:translateY(-50%); z-index:3000; overflow:hidden; color:white;
@@ -163,6 +164,8 @@ input[type=file] { cursor:pointer; }
     from { opacity:0; transform:translateY(-50%) translateX(30px); }
     to   { opacity:1; transform:translateY(-50%) translateX(0); }
 }
+.orb-panel__grip { display:none; }
+.orb-panel__scroll { display:contents; }
 .orb-panel__photo {
     width:100%; background:#06090f; border-radius:28px 28px 0 0;
     display:flex; align-items:center; justify-content:center; padding:16px;
@@ -186,7 +189,7 @@ input[type=file] { cursor:pointer; }
 
 
 /* ── Giriş, durum ekranları, kullanıcı çubuğu, bildirim ──────────────────── */
-.login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; position:relative; z-index:1; }
+.login-screen { min-height:100vh; min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:24px; position:relative; z-index:1; }
 .login-card {
     width:100%; max-width:400px; padding:40px 34px;
     background:var(--glass-bg); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
@@ -218,7 +221,7 @@ input[type=file] { cursor:pointer; }
 }
 .primary-btn:disabled { opacity:0.55; cursor:not-allowed; }
 .status-screen {
-    min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:12px; padding:24px; text-align:center; position:relative; z-index:1;
 }
 .status-screen h2 { font-family:'Playfair Display',serif; font-size:1.8rem; }
@@ -241,4 +244,147 @@ input[type=file] { cursor:pointer; }
     max-width:min(520px,90vw); background:#7f1d1d; border:1px solid #ef4444; color:#fee2e2;
     padding:14px 20px; border-radius:14px; font-size:0.92rem; cursor:pointer;
     box-shadow:0 12px 40px rgba(0,0,0,0.5);
+}
+/* ── Uzun yazılar ─────────────────────────────────────────────────────────
+   Boşluksuz çok uzun kelime bile kartı taşırmaz (kelime kendi içinde bölünür).
+   Açıklama en fazla 7 satır görünür; fazlası kutunun İÇİNDE aşağı kayar, fotoğraf yerinde kalır.
+   Yazarken basılan satır sonları (Enter) korunur. */
+.memory-title, .orb-panel__title { overflow-wrap:anywhere; }
+.memory-description, .orb-panel__desc {
+    overflow-wrap:anywhere; white-space:pre-line; overflow-y:auto;
+    max-height:calc(7 * 1.7em);
+    scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.28) transparent;
+}
+.memory-description[data-more="true"], .orb-panel__desc[data-more="true"] {
+    -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 28px),transparent);
+            mask-image:linear-gradient(to bottom,#000 calc(100% - 28px),transparent);
+}
+.orb-panel__photo img { cursor:zoom-in; }
+
+/* ═══ Kısa pencere (ör. telefon yatay): panel ekrandan taşmasın ══════════════ */
+@media (max-height: 560px) {
+    .orb-panel { max-height:calc(100vh - 150px); max-height:calc(100dvh - 150px); overflow-y:auto; } /* evrenin ✕ düğmesi açıkta kalsın */
+}
+
+/* ═══ Dokunmatik cihaz: ipucu metni ═══════════════════════════════════════ */
+@media (hover: none) and (pointer: coarse) {
+    .hint-mouse { display:none; }
+    .hint-touch { display:inline; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TELEFON / DAR-DİKEY EKRAN DÜZENİ
+   PC'yi etkilemez. Koşul src/lib/layout.ts içindeki COMPACT_QUERY ile AYNI olmalı.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 820px), (orientation: portrait) {
+    html { -webkit-text-size-adjust:100%; }
+    button, .memory-image { -webkit-tap-highlight-color:transparent; }
+
+    /* Başlık */
+    .header { padding:calc(76px + var(--sat)) 20px 30px; }
+    .header h1 { font-size:clamp(2.2rem,10vw,2.9rem); line-height:1.15; margin-bottom:12px; }
+    .header p { font-size:1rem; letter-spacing:0.5px; }
+    .user-bar { top:calc(10px + var(--sat)); right:calc(12px + var(--sar)); font-size:0.8rem; }
+
+    /* Zaman çizgisi: tek sütun, sol çizgi */
+    .timeline-container { padding:4px 14px calc(150px + var(--sab)); }
+    .timeline-line { left:22px; transform:none; }
+    .memory-card { margin:0 0 24px; }
+    .timeline-dot { left:8px; top:30px; transform:translate(-50%,-50%); }
+    .memory-card[data-revealed="false"] { opacity:0; transform:translateY(26px); }
+
+    /* Kart: fotoğraf üstte, kenardan kenara */
+    .card-content,
+    .memory-card:nth-child(odd) .card-content,
+    .memory-card:nth-child(even) .card-content {
+        width:auto !important; margin-left:28px !important; padding:0;
+        display:flex; flex-direction:column; overflow:hidden; border-radius:22px;
+        background:rgba(30,38,62,0.86); backdrop-filter:none; -webkit-backdrop-filter:none;
+        box-shadow:0 14px 34px -10px rgba(0,0,0,0.55);
+    }
+    .card-content:hover { transform:none; border-color:var(--glass-border); }
+    .memory-image {
+        order:-1; border-radius:0; box-shadow:none; max-height:340px;
+        object-fit:cover; object-position:center 35%;
+    }
+    .memory-image:hover { transform:none; }
+    .date-badge { align-self:flex-start; margin:16px 18px 0; padding:5px 14px; font-size:0.72rem; }
+    .memory-title { margin:12px 18px 8px; font-size:1.3rem; line-height:1.3; overflow-wrap:anywhere; }
+    .memory-description { margin:0 18px 20px; font-size:0.95rem; line-height:1.65; max-height:calc(7 * 1.65em); }
+
+    /* Düzenle / sil: dokunmatikte hover olmadığı için hep görünür */
+    .card-actions { opacity:1; top:10px; right:10px; gap:8px; z-index:2; }
+    .action-btn {
+        width:40px; height:40px; padding:0; font-size:16px;
+        display:flex; align-items:center; justify-content:center;
+        background:rgba(12,18,36,0.62); border:1px solid rgba(255,255,255,0.14);
+        backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    }
+
+    /* Yüzen düğmeler */
+    .add-memory-btn, .space-toggle-btn { width:56px; height:56px; bottom:calc(18px + var(--sab)); }
+    .add-memory-btn { right:calc(18px + var(--sar)); font-size:26px; }
+    .space-toggle-btn { left:calc(18px + var(--sal)); font-size:22px; }
+    .add-memory-btn:hover, .space-toggle-btn:hover { transform:none; }
+    .toast { bottom:calc(88px + var(--sab)); max-width:calc(100vw - 32px); }
+
+    /* Giriş / durum ekranları */
+    .login-screen, .status-screen { padding:calc(20px + var(--sat)) 16px calc(20px + var(--sab)); }
+    .login-card { padding:30px 22px; border-radius:26px; }
+
+    /* Anı ekleme penceresi: üstten başlar, ekrana sığmazsa kaydırılır (klavye açıkken de) */
+    body:has(.modal) { overflow:hidden; }
+    .modal {
+        align-items:flex-start; overflow-y:auto; overscroll-behavior:contain;
+        padding:calc(12px + var(--sat)) 12px calc(12px + var(--sab));
+    }
+    .modal-content { width:100%; margin:0 auto; padding:24px 20px; border-radius:26px; }
+    .modal-content h2 { font-size:1.3rem; }
+    .modal-content button { font-family:inherit; font-size:1rem; min-height:48px; }
+
+    /* Anı Evreni */
+    .space-ui { padding:calc(22px + var(--sat)) 64px 0; }
+    .space-title { font-size:clamp(1.6rem,7vw,2.1rem); margin-bottom:4px; }
+    .space-subtitle { font-size:0.85rem; }
+    .space-close-btn { top:calc(12px + var(--sat)); right:calc(12px + var(--sar)); width:44px; height:44px; }
+    .space-hint {
+        bottom:calc(18px + var(--sab)); width:calc(100% - 40px); text-align:center;
+        white-space:normal; color:#8794a8; font-size:0.78rem;
+    }
+    .space-scene:has(.orb-panel) .space-hint { opacity:0; }
+
+    /* Seçili anı paneli: alttan açılan kart (küre üstteki boş alanda görünür) */
+    .orb-panel {
+        top:auto; bottom:0; left:0; right:0; width:auto; max-width:none; transform:none;
+        max-height:46vh; max-height:46dvh; display:flex; flex-direction:column;
+        border-radius:26px 26px 0 0; border-bottom:none; background:rgba(4,8,24,0.95);
+        animation:orbSheetIn 0.45s 0.3s cubic-bezier(0.2,0.8,0.2,1) both;
+    }
+    @keyframes orbSheetIn {
+        from { opacity:0; transform:translateY(40px); }
+        to   { opacity:1; transform:none; }
+    }
+    .orb-panel__grip { display:block; flex:none; width:40px; height:4px; border-radius:4px; background:rgba(255,255,255,0.28); margin:10px auto 0; }
+    /* Fotoğraf küçük resim (yanında tarih + başlık), yazı altında kendi kutusunda kayar */
+    .orb-panel__scroll {
+        flex:1; min-height:0; overflow:hidden;
+        display:grid; grid-template-columns:92px minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr);
+        grid-template-areas:"photo date" "photo title" "desc desc";
+        column-gap:14px; padding:46px 18px calc(14px + var(--sab));
+    }
+    .orb-panel__photo {
+        grid-area:photo; width:92px; height:92px; padding:0; align-self:start;
+        background:transparent; border-radius:16px; overflow:hidden;
+    }
+    .orb-panel__photo img { width:100%; height:100%; max-height:none; object-fit:cover; border-radius:0; }
+    .orb-panel__placeholder { grid-area:photo; width:92px; height:92px; margin:0; border-radius:16px; font-size:2rem; }
+    .orb-panel__body { display:contents; }
+    .orb-panel__date { grid-area:date; align-self:end; margin:0; }
+    .orb-panel__title { grid-area:title; align-self:start; margin:4px 0 0; font-size:1.08rem; }
+    .orb-panel__desc { grid-area:desc; margin-top:14px; min-height:0; max-height:none; font-size:0.9rem; }
+    .orb-panel__close { top:4px; right:8px; width:40px; height:40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .memory-card[data-revealed="false"] { opacity:1; transform:none; }
 }
