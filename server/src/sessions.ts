@@ -67,6 +67,16 @@ export class SessionStore {
     return { sessionId: row.session_id, user: toPublicUser(row) };
   }
 
+  /** Oturum hâlâ geçerli mi? validate'ten farkı: süre uzatmaz, yazmaz (canlı akışın kalp atışı için). */
+  isActive(sessionId: number): boolean {
+    const row = this.db
+      .prepare<[number], { created_at: number; expires_at: number }>("SELECT created_at, expires_at FROM sessions WHERE id = ?")
+      .get(sessionId);
+    if (!row) return false;
+    const now = Date.now();
+    return row.expires_at > now && row.created_at + ABSOLUTE_LIFETIME_MS > now;
+  }
+
   revoke(sessionId: number): void {
     this.db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
   }

@@ -4,12 +4,15 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { registerAuth } from "./authRoutes.js";
+import { registerEventRoutes } from "./eventRoutes.js";
+import { LiveHub } from "./live.js";
 import { config } from "./config.js";
 import type { DB } from "./db.js";
 import { registerMemoryRoutes } from "./memories.js";
 import { PasswordHasher } from "./passwords.js";
 import { registerPhotoRoutes } from "./photoRoutes.js";
 import { PhotoStore } from "./photoStore.js";
+import type { SessionStore } from "./sessions.js";
 import { registerHostCheck, registerStaticSite } from "./staticSite.js";
 
 export interface AppOptions {
@@ -22,6 +25,8 @@ export interface AppOptions {
   webRoot?: string;
   /** Kabul edilen Host adları (portsuz). */
   allowedHosts?: string[];
+  /** Canlı bildirim ayarları (yalnızca testlerde değiştirilir). */
+  live?: { heartbeatMs?: number; maxPerUser?: number };
   /** Önde güvenilir bir ters vekil varsa (tailscale serve): gerçek istemci adresi X-Forwarded-For'dan alınır. */
   trustProxy?: boolean | string;
 }
@@ -96,10 +101,24 @@ export function buildApp(db: DB, options: AppOptions) {
 
   // Bu kapsamdaki her rota giriş ister (açıkça `public` işaretlenenler hariç)
   const hasher = new PasswordHasher(options.hashCost);
+  let sessionStore: SessionStore | undefined;
+  const hub = new LiveHub({
+    isSessionActive: (id) => sessionStore?.isActive(id) ?? false,
+    heartbeatMs: options.live?.heartbeatMs,
+    maxPerUser: options.live?.maxPerUser,
+  });
+  // Açık canlı bağlantılar kapanmadan sunucu kapanamaz: önce onları kapat
+  app.addHook("preClose", async () => hub.shutdown());
+
   app.register(async (secured) => {
-    registerAuth(secured, db, { hasher, secureCookies: options.secureCookies ?? config.secureCookies });
-    registerMemoryRoutes(secured, db, photos);
-    registerPhotoRoutes(secured, db, photos);
+    sessionStore = registerAuth(secured, db, {
+      hasher,
+      secureCookies: options.secureCookies ?? config.secureCookies,
+      onLogout: (sessionId) => hub.closeSession(sessionId),
+    });
+    registerMemoryRoutes(secured, db, photos, hub);
+    registerPhotoRoutes(secured, db, photos, hub);
+    registerEventRoutes(secured, hub);
   });
 
   // En sonda: /api rotaları kesinleşmiş olsun, geri kalan her şey siteye (veya 404'e) düşsün

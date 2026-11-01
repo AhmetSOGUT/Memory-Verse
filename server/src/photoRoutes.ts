@@ -2,13 +2,14 @@ import fs from "node:fs";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { DB } from "./db.js";
+import type { LiveHub } from "./live.js";
 import { MEMORY_SELECT, toApi, type MemoryRow } from "./memories.js";
 import { PhotoError, PhotoStore } from "./photoStore.js";
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const nameParams = z.object({ name: z.string().max(100) });
 
-export function registerPhotoRoutes(app: FastifyInstance, db: DB, store: PhotoStore): void {
+export function registerPhotoRoutes(app: FastifyInstance, db: DB, store: PhotoStore, hub: LiveHub): void {
   const get = db.prepare<[number], MemoryRow>(`${MEMORY_SELECT} WHERE m.id = ?`);
   const setPhoto = db.prepare<[string | null, number]>(
     `UPDATE memories SET photo = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?`,
@@ -33,7 +34,9 @@ export function registerPhotoRoutes(app: FastifyInstance, db: DB, store: PhotoSt
       throw err;
     }
     await store.remove(memory.photo); // eski fotoğrafı temizle
-    return toApi(get.get(id)!);
+    const row = get.get(id)!;
+    hub.publish({ action: "updated", id, title: row.title, by: req.user!.displayName, byId: req.user!.id });
+    return toApi(row);
   });
 
   // Fotoğrafı kaldır
@@ -43,7 +46,9 @@ export function registerPhotoRoutes(app: FastifyInstance, db: DB, store: PhotoSt
     if (!memory) return reply.status(404).send({ error: "Anı bulunamadı" });
     setPhoto.run(null, id);
     await store.remove(memory.photo);
-    return toApi(get.get(id)!);
+    const row = get.get(id)!;
+    hub.publish({ action: "updated", id, title: row.title, by: req.user!.displayName, byId: req.user!.id });
+    return toApi(row);
   });
 
   // Fotoğrafı göster

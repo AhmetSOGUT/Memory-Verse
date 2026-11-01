@@ -34,6 +34,8 @@ const passwordBody = z.strictObject({
 export interface AuthOptions {
   hasher: PasswordHasher;
   secureCookies: boolean;
+    /** Bir oturum çıkışla kapandığında çağrılır (açık canlı bağlantıyı hemen kapatmak için). */
+  onLogout?: (sessionId: number) => void;
 }
 
 /** Çerez adı: Secure iken `__Host-` öneki (alan adına/yola sabitlenir, alt alan adlarından yazılamaz). */
@@ -129,6 +131,7 @@ export function registerAuth(app: FastifyInstance, db: DB, options: AuthOptions)
 
   app.post("/api/auth/logout", async (req, reply) => {
     sessions.revoke(req.sessionId!);
+    options.onLogout?.(req.sessionId!);
     reply.clearCookie(cookieName, { path: "/" });
     return reply.status(204).send();
   });

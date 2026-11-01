@@ -53,6 +53,10 @@ function OrbImpl({ memory, index, total, selected, dimmed, lookDir, wasDrag, onS
 
   const color = useMemo(() => new THREE.Color(ORB_COLORS[index % ORB_COLORS.length]), [index]);
   const base = useMemo(() => orbPosition(index, total), [index, total]);
+  // Yerleşim hesabı sıraya/toplama bağlı: yeni anı eklenince bütün küreler yer değiştirir.
+  // Sert zıplamak yerine bulundukları yerden yeni yerlerine süzülürler. İlk açılışta kayma yok (başlangıç = hedef).
+  const baseVec = useMemo(() => new THREE.Vector3(...base), [base]);
+  const settled = useRef(new THREE.Vector3(...base));
 
   // Fotoğraf dokusu
   const [photo, setPhoto] = useState<THREE.CanvasTexture | null>(null);
@@ -113,7 +117,8 @@ function OrbImpl({ memory, index, total, selected, dimmed, lookDir, wasDrag, onS
     scale.current = lerp(scale.current, tScale, 1 - Math.pow(1 - 0.05, k));
 
     // Süzülme
-    const floatY = base[1] + Math.sin(t * (0.35 + index * 0.06) + index * 1.4) * 0.8;
+    settled.current.lerp(baseVec, 1 - Math.pow(1 - 0.04, k));
+    const floatY = settled.current.y + Math.sin(t * (0.35 + index * 0.06) + index * 1.4) * 0.8;
     const f = focus.current;
     const dir = lookDir.current;
     target.set(
@@ -135,9 +140,9 @@ function OrbImpl({ memory, index, total, selected, dimmed, lookDir, wasDrag, onS
     }
 
     grp.position.set(
-      lerp(base[0], target.x, f),
+      lerp(settled.current.x, target.x, f),
       lerp(floatY, target.y, f),
-      lerp(base[2], target.z, f),
+      lerp(settled.current.z, target.z, f),
     );
     grp.scale.setScalar(scale.current);
     grp.rotation.y = t * 0.08 + index * 0.6;
