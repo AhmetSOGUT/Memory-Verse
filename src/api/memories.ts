@@ -5,8 +5,12 @@ export const listMemories = () => api<Memory[]>("GET", "/api/memories");
 
 export const createMemory = (draft: MemoryDraft) => api<Memory>("POST", "/api/memories", { json: draft });
 
-export const updateMemory = (id: number, draft: MemoryDraft) =>
-  api<Memory>("PUT", `/api/memories/${id}`, { json: draft });
+/**
+ * `expectedUpdatedAt`: formu açtığındaki sürüm. Arada başkası değiştirmişse sunucu 409 döner
+ * (iki kişi aynı anıyı düzenlerken biri diğerini sessizce ezmesin).
+ */
+export const updateMemory = (id: number, draft: MemoryDraft, expectedUpdatedAt?: string) =>
+  api<Memory>("PUT", `/api/memories/${id}`, { json: { ...draft, expectedUpdatedAt } });
 
 export const deleteMemory = (id: number) => api<void>("DELETE", `/api/memories/${id}`);
 

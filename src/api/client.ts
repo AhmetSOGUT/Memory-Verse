@@ -4,6 +4,8 @@ export class ApiError extends Error {
     message: string,
     /** HTTP durum kodu; 0 = sunucuya hiç ulaşılamadı. */
     readonly status: number,
+    /** Sunucunun gönderdiği ek veri (ör. 409'da güncel anı); yoksa undefined. */
+    readonly data?: unknown,
   ) {
     super(message);
   }
@@ -19,16 +21,18 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
 export const errorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : "Bilinmeyen bir hata oluştu";
 
-async function readError(res: Response): Promise<string> {
+async function readError(res: Response): Promise<{ message: string; data?: unknown }> {
+  let data: unknown;
   try {
-    const data = (await res.json()) as { error?: string; message?: string; details?: string[] };
-    const base = data.error ?? data.message;
-    if (base) return data.details?.length ? `${base}: ${data.details.join("; ")}` : base;
+    data = await res.json();
   } catch {
     /* gövde JSON değil */
   }
-  if (res.status >= 500) return "Sunucu bir hata verdi. Biraz sonra tekrar dene.";
-  return `İstek başarısız oldu (${res.status})`;
+  const body = (data ?? {}) as { error?: string; message?: string; details?: string[] };
+  const base = body.error ?? body.message;
+  if (base) return { message: body.details?.length ? `${base}: ${body.details.join("; ")}` : base, data };
+  if (res.status >= 500) return { message: "Sunucu bir hata verdi. Biraz sonra tekrar dene.", data };
+  return { message: `İstek başarısız oldu (${res.status})`, data };
 }
 
 interface RequestOptions {
@@ -57,7 +61,10 @@ export async function api<T>(method: string, path: string, options: RequestOptio
   }
 
   if (res.status === 401 && path !== "/api/auth/login") onUnauthorized?.();
-  if (!res.ok) throw new ApiError(await readError(res), res.status);
+  if (!res.ok) {
+    const { message, data } = await readError(res);
+    throw new ApiError(message, res.status, data);
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
