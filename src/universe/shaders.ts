@@ -401,3 +401,55 @@ export const meteorFragment = /* glsl */ `
     gl_FragColor = vec4(col, vFade);
   }
 `;
+
+
+
+
+/**
+ * Uzaktaki küreler: tam küre yerine tek çizim çağrısında yüzlerce/binlerce parlak nokta (LOD).
+ * aFar = 1 → nokta olarak çiz, 0 → o küre zaten tam ayrıntıyla çiziliyor, gizle.
+ * Uzaklaştıkça küreler orantılı büyütülür (uScaleStart'tan sonra ekrandaki boyutu sabit kalır, en çok uScaleMax kat).
+ */
+export const farOrbVertex = /* glsl */ `
+  attribute vec3  aColor;
+  attribute float aFar;
+  uniform float uPxPerUnit;   // piksel / (birim @ 1 uzaklık): dünya boyutunu ekran pikseline çevirir
+  uniform float uRadius;      // küre yarıçapı (dünya birimi)
+  uniform float uScaleStart;  // bu uzaklıktan sonra küreler büyütülmeye başlar
+  uniform float uScaleMax;
+  uniform float uDim;
+  uniform float uMinPx;       // nokta boyutu alt sınırı (piksel)
+  uniform float uMaxPx;       // nokta boyutu üst sınırı (piksel)
+  varying vec3  vColor;
+  varying float vAlpha;
+  void main() {
+    // Uzaktan şeker gibi değil yıldız gibi görünsün: renk sıcak beyaza doğru yumuşar
+    vColor = mix(aColor, vec3(1.0, 0.96, 0.88), 0.4);
+    if (aFar < 0.5) {
+      vAlpha = 0.0;
+      gl_PointSize = 0.0;
+      gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // ekran dışına at
+      return;
+    }
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    float dist = max(-mv.z, 1.0);
+    float vis = clamp(dist / uScaleStart, 1.0, uScaleMax);
+    // çekirdek çapı = 2·yarıçap·vis; sprite halesi için 2.2 kat
+    gl_PointSize = clamp(uRadius * vis * 2.0 * uPxPerUnit / dist * 2.2, uMinPx, uMaxPx);
+    vAlpha = uDim;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+export const farOrbFragment = /* glsl */ `
+  varying vec3  vColor;
+  varying float vAlpha;
+  void main() {
+    float r = length(gl_PointCoord - vec2(0.5)) * 2.0;   // 0 merkez, 1 sprite kenarı
+    float core = smoothstep(0.50, 0.30, r);              // dolgun çekirdek
+    float halo = pow(max(1.0 - r, 0.0), 2.5) * 0.45;     // yumuşak hale
+    float a = (core * 0.85 + halo) * vAlpha;
+    if (a < 0.01) discard;
+    gl_FragColor = vec4(vColor * (0.7 + core * 0.5), a);
+  }
+`;

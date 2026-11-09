@@ -111,3 +111,50 @@ export const METEORS = {
   /** İlk kayan yıldız en erken kaç saniye sonra çıksın. */
   firstDelay: 2.5,
 } as const;
+
+
+
+/**
+ * Anı dünyası: kamera ortada durur, anılar çevresinde iç içe KABUKLAR üzerinde dizilir (en eski en içte, en yeni dışta).
+ * Her kabukta anılar tarih sırasıyla bir sarmal çizer (kuzeyden güneye). Bir kürenin yeri yalnızca SIRASINA bağlıdır;
+ * yeni anı eklenince eskiler oynamaz. Kamera serbestçe gezilebilir.
+ */
+export const WORLD = {
+  /** Komşu küreler arası yaklaşık mesafe (birim): hem kabuk aralığını hem kabuktaki sıklığı belirler. */
+  spacing: 250,
+  /** İlk kabuğun yarıçapı: kamera ortadadır, ilk anılar çevresinde belirir. */
+  innerRadius: 150,
+  /** Kabuk yarıçapına SABİT rastgele sapma (spacing oranı): kabuklar kusursuz küre gibi görünmesin. */
+  radialJitter: 0.2,
+  /** Kürelerin yuvaları etrafında gezinme genliği (spacing oranı). */
+  wander: 0.4,
+  /** Her kabuk kendi ekseni etrafında yavaşça döner; en hızlısı bu kadar (rad/sn). */
+  shellSpin: 0.0035,
+  /** Kameranın boşta kendiliğinden dönüş hızı (rad/sn). */
+  cameraIdle: 0.004,
+  /** Tam ayrıntıyla (cam + fotoğraf) çizilecek en çok küre: masaüstü / dokunmatik. Gerisi parlak nokta. */
+  nearMax: 40,
+  nearMaxCoarse: 24,
+  /** Kameradan bundan uzak küreler her zaman nokta olarak çizilir. */
+  nearDistance: 100000,
+  /** Seçim mıknatısı: dokunulan/tıklanan noktaya bu kadar piksel içindeki en yakın küre seçilir. */
+  pickRadius: { mouse: 22, touch: 38 },
+  /** Fare/parmak etkileşiminde dünyanın hareket çarpanı (1 = normal). */
+  motionSlow: { hover: 0.12, press: 0.4, selected: 0.15 },
+  /** Gezinme (uçuş). */
+  fly: {
+    /** Klavye hızı (birim/sn); en yakın kürenin uzaklığına göre 0.4–3 kat. */
+    keySpeed: 150,
+    /** Tekerlek adımı başına ivme ve sıkıştırma kazancı. */
+    wheelImpulse: 0.9,
+    pinchGain: 0.9,
+    /** Hız sönümü (1/sn). */
+    damping: 3,
+    /** Küreyi incelerken kameradan başlangıç uzaklığı; tekerlek/sıkıştırma focusMin–focusMax arasında değiştirir. */
+    dockDistance: 52,
+    focusMin: 26,
+    focusMax: 120,
+    /** Dış kabuğun ötesinde ne kadar uzaklaşılabilir (kaybolmasın). */
+    bounds: 240,
+  },
+} as const;

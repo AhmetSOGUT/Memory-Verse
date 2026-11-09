@@ -151,3 +151,58 @@ export function orbPosition(i: number, total: number): [number, number, number] 
     rad * Math.sin(inc) * Math.sin(az),
   ];
 }
+
+
+
+// ─── Doku önbelleği ──────────────────────────────────────────────────────────
+// Kamera yaklaşıp uzaklaştıkça küreler tam çizime girip çıkar (LOD). Aynı fotoğraf her seferinde yeniden
+// çözülmesin diye dokular saklanır; hiçbir küreye bağlı olmayanlardan en çok IDLE_LIMIT tanesi bellekte kalır.
+interface CacheEntry {
+  promise: Promise<THREE.CanvasTexture | null>;
+  texture: THREE.CanvasTexture | null;
+  refs: number;
+}
+const textureCache = new Map<string, CacheEntry>();
+const IDLE_LIMIT = 32;
+
+function trimIdle(): void {
+  const idle = [...textureCache.entries()].filter(([, e]) => e.refs === 0);
+  // Map ekleme sırasını korur: en eski boştakiler önce atılır
+  for (const [src, entry] of idle.slice(0, Math.max(0, idle.length - IDLE_LIMIT))) {
+    entry.texture?.dispose();
+    textureCache.delete(src);
+  }
+}
+
+/** Fotoğraf dokusunu ödünç alır (önbellekten ya da yükleyerek). Bitince `release` çağrılmalı. */
+export function acquirePhotoTexture(src: string): {
+  promise: Promise<THREE.CanvasTexture | null>;
+  release: () => void;
+} {
+  let entry = textureCache.get(src);
+  if (!entry) {
+    const created: CacheEntry = {
+      texture: null,
+      refs: 0,
+      promise: loadPhotoTexture(src).then((tex) => {
+        if (textureCache.get(src) !== created) tex?.dispose(); // yüklenirken atıldı: sızdırma
+        else created.texture = tex;
+        return tex;
+      }),
+    };
+    textureCache.set(src, created);
+    entry = created;
+  }
+  const held = entry;
+  held.refs++;
+  let released = false;
+  return {
+    promise: held.promise,
+    release: () => {
+      if (released) return;
+      released = true;
+      held.refs--;
+      trimIdle();
+    },
+  };
+}
