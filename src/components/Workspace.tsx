@@ -13,7 +13,7 @@ import Timeline from "./Timeline";
 import Toast from "./Toast";
 import SpaceScene from "./universe/SpaceScene";
 import UserBar from "./UserBar";
-import { collectCategories, filterMemories } from "../lib/search";
+import { collectCategoryStats, filterMemories } from "../lib/search";
 import MemorySearch from "./MemorySearch";
 
 interface WorkspaceProps {
@@ -66,7 +66,8 @@ function Workspace({ user, onLogout }: WorkspaceProps) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  const categories = useMemo(() => collectCategories(memories), [memories]);
+  const categoryStats = useMemo(() => collectCategoryStats(memories), [memories]);
+  const categories = useMemo(() => categoryStats.map((stat) => stat.name), [categoryStats]);
   const filteredMemories = useMemo(
     () => filterMemories(memories, { query, category: categoryFilter, fromDate, toDate }),
     [memories, query, categoryFilter, fromDate, toDate],
@@ -259,6 +260,7 @@ function Workspace({ user, onLogout }: WorkspaceProps) {
           category={categoryFilter}
           onCategoryChange={setCategoryFilter}
           categories={categories}
+          categoryStats={categoryStats}
           fromDate={fromDate}
           onFromDateChange={setFromDate}
           toDate={toDate}

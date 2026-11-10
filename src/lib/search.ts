@@ -56,8 +56,14 @@ export function filterMemories(memories: Memory[], filter: MemoryFilter): Memory
 }
 
 /** Daha önce kullanılan kategoriler: çok kullanılandan aza, eşitse alfabetik. */
-export function collectCategories(memories: Memory[]): string[] {
-  const groups = new Map<string, { name: string; count: number }>();
+export interface CategoryStat {
+  name: string;
+  count: number;
+}
+
+/** Kategorileri kullanım sayısıyla birlikte toplar (arama panelindeki etiketler için). */
+export function collectCategoryStats(memories: Memory[]): CategoryStat[] {
+  const groups = new Map<string, CategoryStat>();
   for (const memory of memories) {
     const name = (memory.category ?? "").trim();
     if (!name) continue;
@@ -66,9 +72,13 @@ export function collectCategories(memories: Memory[]): string[] {
     if (existing) existing.count += 1;
     else groups.set(key, { name, count: 1 });
   }
-  return [...groups.values()]
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "tr"))
-    .map((group) => group.name);
+  return [...groups.values()].sort(
+    (a, b) => b.count - a.count || a.name.localeCompare(b.name, "tr"),
+  );
+}
+
+export function collectCategories(memories: Memory[]): string[] {
+  return collectCategoryStats(memories).map((stat) => stat.name);
 }
 
 /** Yazılan kategoriyi, varsa aynı kategorinin mevcut yazımıyla eşleştir (ör. "tatil" → "Tatil"). */
