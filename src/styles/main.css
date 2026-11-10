@@ -421,3 +421,144 @@ input[type=file] { cursor:pointer; }
 @media (prefers-reduced-motion: reduce) {
     .memory-card[data-revealed="false"] { opacity:1; transform:none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KATEGORİ + ARAMA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Kart üzerindeki kategori etiketi ─────────────────────────────────────── */
+.card-badges { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:15px; }
+.card-badges .date-badge { margin-bottom:0; }
+.category-badge {
+    display:inline-block; max-width:100%; padding:6px 14px; border-radius:12px;
+    font-size:0.74rem; font-weight:600; letter-spacing:0.4px;
+    color:#f9a8d4; background:rgba(255,117,140,0.12);
+    border:1px solid rgba(255,117,140,0.3);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* ── Anı formundaki kategori kutusu (yazılabilir açılır liste) ────────────── */
+.category-combobox { position:relative; margin-top:4px; }
+.category-combobox > input { margin-top:0; padding-right:44px; }
+.category-clear {
+    position:absolute; top:50%; right:8px; transform:translateY(-50%);
+    width:28px; height:28px; min-height:0; padding:0; border:none; border-radius:50%;
+    background:rgba(255,255,255,0.08); color:var(--text-dim);
+    cursor:pointer; font-size:12px; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+}
+.category-clear:hover { background:rgba(255,117,140,0.3); color:#fff; }
+.category-options {
+    position:absolute; left:0; right:0; top:calc(100% + 6px); z-index:10;
+    max-height:190px; overflow-y:auto; list-style:none; padding:6px; margin:0;
+    background:#0f172a; border:1px solid rgba(255,255,255,0.14); border-radius:12px;
+    box-shadow:0 18px 40px rgba(0,0,0,0.55);
+    scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.25) transparent;
+}
+.category-options button {
+    display:flex; align-items:center; gap:8px; width:100%; min-height:0;
+    padding:9px 10px; border:none; border-radius:8px;
+    background:transparent; color:var(--text-main);
+    font-family:inherit; font-size:0.92rem; text-align:left; cursor:pointer;
+}
+.category-options button:hover,
+.category-options button.is-active { background:rgba(255,117,140,0.2); }
+.category-new {
+    position:absolute; left:0; right:0; top:calc(100% + 6px); z-index:10;
+    padding:11px 14px; border-radius:12px; font-size:0.86rem; color:#94a3b8;
+    background:#0f172a; border:1px dashed rgba(255,117,140,0.4);
+}
+.category-hint { margin-top:6px; font-size:0.74rem; color:#64748b; }
+
+/* ── Arama / filtre çubuğu ───────────────────────────────────────────────── */
+.memory-search-wrap { max-width:1000px; margin:0 auto; padding:0 20px 8px; position:relative; z-index:2; }
+.memory-search {
+    padding:14px; border-radius:22px;
+    background:rgba(255,255,255,0.07);
+    border:1px solid rgba(255,255,255,0.12);
+    box-shadow:0 18px 44px -20px rgba(0,0,0,0.7);
+    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+}
+.memory-search__top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.memory-search__input {
+    position:relative; display:flex; align-items:center; flex:1 1 280px; min-width:0;
+    padding:0 10px; border-radius:14px;
+    background:rgba(15,23,42,0.55); border:1px solid rgba(255,255,255,0.1);
+    transition:border-color 0.2s, box-shadow 0.2s;
+}
+.memory-search__input:focus-within {
+    border-color:rgba(255,117,140,0.65);
+    box-shadow:0 0 0 3px rgba(255,117,140,0.14);
+}
+.memory-search__input > span { font-size:0.95rem; opacity:0.85; }
+.memory-search__input input {
+    flex:1; width:100%; min-width:0; margin:0; padding:11px 8px; border:none;
+    background:transparent; font-size:0.95rem; outline:none;
+    appearance:none; -webkit-appearance:none;
+}
+.memory-search__input input::-webkit-search-cancel-button { display:none; }
+.memory-search__clear-input {
+    flex:none; width:26px; height:26px; min-height:0; padding:0;
+    border:none; border-radius:50%; background:rgba(255,255,255,0.08);
+    color:var(--text-dim); font-size:11px; line-height:1; cursor:pointer;
+}
+.memory-search__clear-input:hover { background:rgba(255,117,140,0.3); color:#fff; }
+.memory-search__select,
+.memory-search__dates-toggle {
+    min-height:0; padding:11px 14px; border-radius:14px;
+    background:rgba(15,23,42,0.55); border:1px solid rgba(255,255,255,0.12);
+    color:var(--text-main); font-family:inherit; font-size:0.88rem; cursor:pointer; outline:none;
+}
+.memory-search__select { min-width:150px; max-width:220px; }
+.memory-search__select option { background:#0f172a; color:#fff; }
+.memory-search__select:focus,
+.memory-search__dates-toggle:focus,
+.memory-search__dates-toggle:hover { border-color:rgba(255,117,140,0.6); }
+.memory-search__dates-toggle.is-active { border-color:rgba(255,117,140,0.6); color:#ffb3c0; }
+.memory-search__dates {
+    display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap;
+    margin-top:12px; padding-top:12px;
+    border-top:1px dashed rgba(255,255,255,0.12);
+}
+.memory-search__dates label { flex:0 1 auto; font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:#94a3b8; }
+.memory-search__dates input { width:auto; margin-top:5px; padding:9px 12px; background:rgba(15,23,42,0.55); }
+.memory-search__dates > span { padding-bottom:10px; color:#64748b; }
+.memory-search__footer {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    margin-top:10px; padding:0 4px; font-size:0.78rem; color:#8fa0b5;
+}
+.memory-search__footer strong { color:#ffb3c0; }
+.memory-search__clear {
+    min-height:0; padding:3px 2px; border:none; background:transparent;
+    color:#ff8fa3; font-family:inherit; font-size:0.78rem; cursor:pointer;
+    text-decoration:underline; text-underline-offset:3px;
+}
+.memory-search__clear:hover { color:#ffb3c0; }
+
+/* Evren panelindeki küçük kategori etiketi */
+.orb-panel__category {
+    display:inline-block; margin-right:8px; padding:3px 9px; border-radius:999px;
+    font-size:0.62rem; letter-spacing:0.6px; text-transform:none;
+    color:#f9a8d4; background:rgba(255,117,140,0.16); border:1px solid rgba(255,117,140,0.3);
+}
+
+/* Tarih seçiciler koyu temada okunaklı olsun */
+input[type="date"] { color-scheme:dark; }
+
+/* ── Telefon düzeni ──────────────────────────────────────────────────────── */
+@media (max-width: 820px), (orientation: portrait) {
+    .memory-search-wrap { padding:0 14px 6px; }
+    .memory-search { padding:12px; border-radius:20px; }
+    .memory-search__top { gap:8px; }
+    .memory-search__input { flex:1 1 100%; }
+    .memory-search__select { flex:1 1 0; min-width:0; max-width:none; }
+    .memory-search__dates-toggle { flex:0 0 auto; }
+    .memory-search__dates { gap:8px; }
+    .memory-search__dates label { flex:1 1 0; min-width:0; }
+    .memory-search__dates input { width:100%; }
+    .memory-search__dates > span { display:none; }
+
+    .card-badges { align-self:flex-start; margin:16px 18px 0; }
+    .card-badges .date-badge { margin:0; }
+    .category-badge { font-size:0.7rem; padding:5px 12px; }
+}

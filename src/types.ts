@@ -4,6 +4,8 @@ export interface Memory {
   date: string;
   title: string;
   description: string;
+  /** Elle yazılan kategori; yoksa null/undefined. */
+  category?: string | null;
   /** Fotoğrafın sunucudaki adresi (/api/photos/...); yoksa null. */
   image?: string | null;
   /** Anıyı ekleyen kişinin görünen adı. */
@@ -13,7 +15,7 @@ export interface Memory {
 }
 
 /** Formda kullanıcının doldurduğu alanlar (id, fotoğraf ve yazar sunucudan gelir). */
-export type MemoryDraft = Pick<Memory, "date" | "title" | "description">;
+export type MemoryDraft = Pick<Memory, "date" | "title" | "description" | "category">;
 
 /** Kaydederken fotoğrafa ne olacağı. */
 export type PhotoChange =

@@ -70,7 +70,10 @@ function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
             </button>
           </div>
 
-          <span className="date-badge">{formattedDate}</span>
+          <div className="card-badges">
+            <span className="date-badge">{formattedDate}</span>
+            {memory.category && <span className="category-badge">🏷️ {memory.category}</span>}
+          </div>
           <h2 className="memory-title">{memory.title}</h2>
           <ScrollText className="memory-description">{memory.description}</ScrollText>
 

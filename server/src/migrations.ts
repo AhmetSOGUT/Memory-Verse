@@ -42,4 +42,10 @@ export const migrations: string[] = [
 
   ALTER TABLE memories ADD COLUMN created_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
   `,
+
+  // 3 — anı kategorisi (elle yazılır; aynı yazılanlar aynı kategoriyi oluşturur)
+  `
+  ALTER TABLE memories ADD COLUMN category TEXT;
+  CREATE INDEX idx_memories_category ON memories(category);
+  `,
 ];

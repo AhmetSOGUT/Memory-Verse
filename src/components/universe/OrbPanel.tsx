@@ -38,7 +38,10 @@ export default function OrbPanel({ memory, onClose, position, onPrev, onNext }: 
           <div className="orb-panel__placeholder">💫</div>
         )}
         <div className="orb-panel__body">
-          <div className="orb-panel__date">{date}</div>
+          <div className="orb-panel__date">
+            {memory.category && <span className="orb-panel__category">🏷️ {memory.category}</span>}
+            {date}
+          </div>
           <div className="orb-panel__title">{memory.title}</div>
           <ScrollText className="orb-panel__desc">{memory.description}</ScrollText>
           {position && (
