@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, errorMessage } from "../api/client";
 import {
   createMemory, deleteMemory, listMemories, removeMemoryPhoto, setMemoryPhoto, updateMemory,
@@ -13,6 +13,8 @@ import Timeline from "./Timeline";
 import Toast from "./Toast";
 import SpaceScene from "./universe/SpaceScene";
 import UserBar from "./UserBar";
+import { collectCategoryStats, filterMemories } from "../lib/search";
+import MemorySearch from "./MemorySearch";
 
 interface WorkspaceProps {
   user: AuthUser;
@@ -57,6 +59,28 @@ function Workspace({ user, onLogout }: WorkspaceProps) {
   const [toast, setToast] = useState<ToastState | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
   const showToast = useCallback((text: string, kind: ToastState["kind"] = "error") => setToast({ text, kind }), []);
+
+  // Arama / filtre durumu
+  const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  const categoryStats = useMemo(() => collectCategoryStats(memories), [memories]);
+  const categories = useMemo(() => categoryStats.map((stat) => stat.name), [categoryStats]);
+  const filteredMemories = useMemo(
+    () => filterMemories(memories, { query, category: categoryFilter, fromDate, toDate }),
+    [memories, query, categoryFilter, fromDate, toDate],
+  );
+  const hasActiveFilters =
+    query.trim() !== "" || categoryFilter !== "" || fromDate !== "" || toDate !== "";
+
+  const clearFilters = useCallback(() => {
+    setQuery("");
+    setCategoryFilter("");
+    setFromDate("");
+    setToDate("");
+  }, []);
 
   /** Düzenleme formu açılırken anının sürümü; kaydederken sunucuya "arada değişti mi?" kontrolü için gönderilir. */
   const editBase = useRef<string | undefined>(undefined);
@@ -229,7 +253,33 @@ function Workspace({ user, onLogout }: WorkspaceProps) {
           </button>
         </div>
       )}
-      {loadState === "ready" && <Timeline memories={memories} onEdit={handleEdit} onDelete={handleDelete} />}
+      {loadState === "ready" && memories.length > 0 && (
+        <MemorySearch
+          query={query}
+          onQueryChange={setQuery}
+          category={categoryFilter}
+          onCategoryChange={setCategoryFilter}
+          categories={categories}
+          categoryStats={categoryStats}
+          fromDate={fromDate}
+          onFromDateChange={setFromDate}
+          toDate={toDate}
+          onToDateChange={setToDate}
+          resultCount={filteredMemories.length}
+          totalCount={memories.length}
+          onClear={clearFilters}
+        />
+      )}
+
+      {loadState === "ready" && (
+        <Timeline
+          memories={filteredMemories}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          isFiltered={hasActiveFilters}
+          onClearFilters={clearFilters}
+        />
+      )}
 
       <button className="add-memory-btn" onClick={handleAddNew} title="Anı Ekle">
         +
@@ -244,6 +294,7 @@ function Workspace({ user, onLogout }: WorkspaceProps) {
         onClose={handleCloseModal}
         onSave={handleSave}
         editingMemory={editingMemory}
+        categories={categories}
         isSaving={isSaving}
       />
 

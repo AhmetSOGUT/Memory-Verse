@@ -6,16 +6,32 @@ interface TimelineProps {
   memories: Memory[];
   onEdit: (memory: Memory) => void;
   onDelete: (id: number) => void;
+  /** Arama/filtre aktifken sonuç yoksa "henüz anı yok" yerine filtre mesajı gösterilir. */
+  isFiltered?: boolean;
+  onClearFilters?: () => void;
 }
 
-function Timeline({ memories, onEdit, onDelete }: TimelineProps) {
+function Timeline({ memories, onEdit, onDelete, isFiltered = false, onClearFilters }: TimelineProps) {
   return (
     <div className="timeline-container">
       <div className="timeline-line"></div>
 
       <div id="memoriesWrapper">
         {memories.length === 0 ? (
-          <EmptyState />
+          isFiltered ? (
+            <div className="empty-state">
+              <p style={{ fontSize: "3rem" }}>🔎</p>
+              <h3>Aramanla eşleşen anı yok</h3>
+              <p>Başka bir kelime dene ya da filtreleri temizle.</p>
+              {onClearFilters && (
+                <button className="primary-btn status-btn" onClick={onClearFilters}>
+                  Filtreleri temizle
+                </button>
+              )}
+            </div>
+          ) : (
+            <EmptyState />
+          )
         ) : (
           memories.map((memory) => (
             <MemoryCard

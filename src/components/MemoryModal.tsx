@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { compressImage } from "../lib/image";
+import { canonicalCategory } from "../lib/search";
 import type { Memory, MemoryDraft, PhotoChange } from "../types";
 
 interface MemoryModalProps {
@@ -7,6 +8,8 @@ interface MemoryModalProps {
   onClose: () => void;
   onSave: (draft: MemoryDraft, photo: PhotoChange) => void | Promise<void>;
   editingMemory: Memory | null;
+  /** Daha önce kullanılan kategoriler (yazılabilir açılır liste). */
+  categories: string[];
   isSaving: boolean;
 }
 
@@ -19,14 +22,59 @@ function MemoryModal({ isOpen, ...rest }: MemoryModalProps) {
   return <MemoryForm key={rest.editingMemory?.id ?? "new"} {...rest} />;
 }
 
-function MemoryForm({ onClose, onSave, editingMemory, isSaving }: Omit<MemoryModalProps, "isOpen">) {
+function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Omit<MemoryModalProps, "isOpen">) {
   const [date, setDate] = useState(editingMemory?.date || "");
   const [title, setTitle] = useState(editingMemory?.title || "");
   const [description, setDescription] = useState(editingMemory?.description || "");
+  const [category, setCategory] = useState(editingMemory?.category || "");
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const [image, setImage] = useState<string | null>(editingMemory?.image || null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [originalSize, setOriginalSize] = useState<string | null>(null);
   const [compressedSize, setCompressedSize] = useState<string | null>(null);
+  const categoryBox = useRef<HTMLDivElement>(null);
+
+  const suggestions = useMemo(() => {
+    const needle = category.trim().toLocaleLowerCase("tr-TR");
+    const list = needle
+      ? categories.filter((name) => name.toLocaleLowerCase("tr-TR").includes(needle))
+      : categories;
+    return list.slice(0, 50);
+  }, [categories, category]);
+
+  // Liste açıkken dışarı tıklanınca kapansın
+  useEffect(() => {
+    if (!categoryOpen) return;
+    function handlePointerDown(event: PointerEvent) {
+      if (!categoryBox.current?.contains(event.target as Node)) setCategoryOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [categoryOpen]);
+
+  function pickCategory(name: string) {
+    setCategory(name);
+    setCategoryOpen(false);
+    setActiveIndex(-1);
+  }
+
+  function handleCategoryKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown" && suggestions.length > 0) {
+      event.preventDefault();
+      setCategoryOpen(true);
+      setActiveIndex((index) => (index + 1) % suggestions.length);
+    } else if (event.key === "ArrowUp" && suggestions.length > 0) {
+      event.preventDefault();
+      setCategoryOpen(true);
+      setActiveIndex((index) => (index <= 0 ? suggestions.length - 1 : index - 1));
+    } else if (event.key === "Enter" && categoryOpen && activeIndex >= 0 && suggestions[activeIndex]) {
+      event.preventDefault();
+      pickCategory(suggestions[activeIndex]);
+    } else if (event.key === "Escape") {
+      setCategoryOpen(false);
+    }
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -59,7 +107,7 @@ function MemoryForm({ onClose, onSave, editingMemory, isSaving }: Omit<MemoryMod
     const original = editingMemory?.image ?? null;
     let photo: PhotoChange = { kind: "keep" };
     if (image !== original) photo = image === null ? { kind: "remove" } : { kind: "set", dataUrl: image };
-    onSave({ date, title, description }, photo);
+    onSave({ date, title, description, category: canonicalCategory(category, categories) }, photo);
   }
 
   const busy = isCompressing || isSaving;
@@ -93,6 +141,70 @@ function MemoryForm({ onClose, onSave, editingMemory, isSaving }: Omit<MemoryMod
               required
               disabled={busy}
             />
+          </div>
+
+          {/* ── Kategori ── */}
+          <div style={{ marginBottom: "15px" }} ref={categoryBox}>
+            <label htmlFor="memory-category">Kategori</label>
+            <div className="category-combobox">
+              <input
+                id="memory-category"
+                type="text"
+                placeholder="Örn: Tatil, Yıl Dönümü, İlkler…"
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setCategoryOpen(true);
+                  setActiveIndex(-1);
+                }}
+                onFocus={() => setCategoryOpen(true)}
+                onKeyDown={handleCategoryKeyDown}
+                maxLength={60}
+                autoComplete="off"
+                disabled={busy}
+              />
+
+              {category !== "" && (
+                <button
+                  type="button"
+                  className="category-clear"
+                  onClick={() => {
+                    setCategory("");
+                    setActiveIndex(-1);
+                  }}
+                  aria-label="Kategoriyi temizle"
+                >
+                  ✕
+                </button>
+              )}
+
+              {categoryOpen && suggestions.length > 0 && (
+                <ul className="category-options" role="listbox" aria-label="Önceki kategoriler">
+                  {suggestions.map((name, index) => (
+                    <li key={name}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={name.toLocaleLowerCase("tr-TR") === category.trim().toLocaleLowerCase("tr-TR")}
+                        className={index === activeIndex ? "is-active" : undefined}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => pickCategory(name)}
+                      >
+                        <span aria-hidden="true">🏷️</span>
+                        {name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {categoryOpen && suggestions.length === 0 && category.trim() !== "" && (
+                <div className="category-new">Yeni kategori: “{category.trim()}”</div>
+              )}
+            </div>
+            <p className="category-hint">
+              Yaz ya da listeden seç — aynı yazılan kategoriler otomatik eşleşir.
+            </p>
           </div>
 
           <div style={{ marginBottom: "15px" }}>
