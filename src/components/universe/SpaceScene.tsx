@@ -17,6 +17,12 @@ export default function SpaceScene({ isOpen, onClose, memories: realMemories }: 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   /** Her artışta kamera dünyanın merkezine döner. */
   const [homeTick, setHomeTick] = useState(0);
+  /**
+   * İncelemede panelde gezerken küreye basılan fotoğraf (anı kimliği → sıra).
+   * Yalnızca bellekte tutulur: sayfa yenilenince ilk fotoğrafa (kapağa) döner.
+   * İncelemeden çıkılınca değer korunur, yani küre en son bakılan fotoğrafta kalır.
+   */
+  const [photoIndexById, setPhotoIndexById] = useState<Record<number, number>>({});
   // Gizli deneme modu: adreste ?demo=300 varsa o kadar sahte anı eklenir (yalnızca burada görünür, kaydedilmez)
   const demo = useMemo(() => demoOptionsFromUrl(), []);
   const demoCount = demo.count;
@@ -71,6 +77,7 @@ export default function SpaceScene({ isOpen, onClose, memories: realMemories }: 
               onSelect={setSelectedId}
               onDeselect={() => setSelectedId(null)}
               homeTick={homeTick}
+              photoIndexById={photoIndexById}
             />
           </Suspense>
         )}
@@ -103,6 +110,12 @@ export default function SpaceScene({ isOpen, onClose, memories: realMemories }: 
           position={{ index: selectedIndex, total: memories.length }}
           onPrev={selectedIndex > 0 ? () => goTo(selectedIndex - 1) : undefined}
           onNext={selectedIndex < memories.length - 1 ? () => goTo(selectedIndex + 1) : undefined}
+          photoIndex={photoIndexById[selected.id] ?? 0}
+          onPhotoIndexChange={(index) =>
+            setPhotoIndexById((prev) =>
+              prev[selected.id] === index ? prev : { ...prev, [selected.id]: index },
+            )
+          }
         />
       )}
     </div>

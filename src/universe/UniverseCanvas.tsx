@@ -25,6 +25,8 @@ interface UniverseCanvasProps {
   onDeselect: () => void;
   /** Değiştikçe kamera merkeze döner. */
   homeTick: number;
+  /** Anı kimliği → kürede gösterilecek fotoğrafın sırası (panelde kaydırınca değişir). */
+  photoIndexById: Record<number, number>;
 }
 
 /**
@@ -39,7 +41,14 @@ function SkyRig({ children }: { children: React.ReactNode }) {
   return <group ref={ref}>{children}</group>;
 }
 
-export default function UniverseCanvas({ memories, selectedId, onSelect, onDeselect, homeTick }: UniverseCanvasProps) {
+export default function UniverseCanvas({
+  memories,
+  selectedId,
+  onSelect,
+  onDeselect,
+  homeTick,
+  photoIndexById,
+}: UniverseCanvasProps) {
   const dragState = useRef({ moved: false });
   const store = useRef(createWorldStore()); // ortak dünya durumu (kare başına değişir, React durumu değil)
 
@@ -96,6 +105,7 @@ export default function UniverseCanvas({ memories, selectedId, onSelect, onDesel
         selectedId={selectedId}
         coarse={coarse}
         maxOverride={demo.near ?? undefined}
+        photoIndexById={photoIndexById}
       />
       <Picker store={store} memories={memories} dragState={dragState} onSelect={onSelect} onDeselect={onDeselect} />
 

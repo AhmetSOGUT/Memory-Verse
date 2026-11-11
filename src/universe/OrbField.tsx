@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Memory } from "../types";
+import { memoryImages } from "../lib/photos";
 import { ORB_COLORS, SPHERE_RADIUS, WORLD } from "./constants";
 import { Orb } from "./Orb";
 import { farOrbFragment, farOrbVertex } from "./shaders";
@@ -16,6 +17,8 @@ interface OrbFieldProps {
   coarse: boolean;
   /** Deneme modunda (?near=N) tam çizilecek küre sayısını geçersiz kılar. */
   maxOverride?: number;
+  /** Anı kimliği → kürede gösterilecek fotoğrafın sırası (panelde kaydırınca değişir). */
+  photoIndexById: Record<number, number>;
 }
 
 const CHECK_EVERY_S = 0.25;
@@ -26,7 +29,14 @@ const STICKY = 0.8; // zaten tam çizilen küre, yer değiştirmek için rakipte
  * geri kalanı tek çizim çağrısında parlak nokta olarak (<FarOrbs>). Binlerce anıda bile akıcı kalmak için.
  * Seçili ve üzerine gelinen küre her zaman tam çizilir.
  */
-export function OrbField({ store, memories, selectedId, coarse, maxOverride }: OrbFieldProps) {
+export function OrbField({
+  store,
+  memories,
+  selectedId,
+  coarse,
+  maxOverride,
+  photoIndexById,
+}: OrbFieldProps) {
   const max = maxOverride ?? (coarse ? WORLD.nearMaxCoarse : WORLD.nearMax);
   const [nearList, setNearList] = useState<number[]>(() =>
     Array.from({ length: Math.min(memories.length, max) }, (_, i) => i),
@@ -77,10 +87,15 @@ export function OrbField({ store, memories, selectedId, coarse, maxOverride }: O
       {nearList.map((i) => {
         const memory = memories[i];
         if (!memory) return null;
+        // Küre dokusu: panelde kaydırılan fotoğraf; hiç kaydırılmadıysa kapak (ilk fotoğraf).
+        // Sıra, paneldeki kaydırıcıyla aynı biçimde aralığa sıkıştırılır.
+        const images = memoryImages(memory);
+        const at = Math.min(photoIndexById[memory.id] ?? 0, Math.max(0, images.length - 1));
+        const photo = images[at] ?? null;
         return (
           <Orb
             key={memory.id}
-            memory={memory}
+            image={photo}
             index={i}
             selected={selectedId === memory.id}
             dimmed={selectedId !== null && selectedId !== memory.id}

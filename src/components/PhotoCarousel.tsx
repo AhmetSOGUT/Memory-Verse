@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
 interface PhotoCarouselProps {
@@ -14,6 +14,13 @@ interface PhotoCarouselProps {
   arrows?: "hover" | "always" | "none";
   /** Sağ altta küçük "2 / 5" sayacı. */
   counter?: boolean;
+  /**
+   * Denetimli kullanım: gösterilecek fotoğrafın sırası. Verilirse bileşen kendi indeksini tutmaz,
+   * dışarıdaki değeri izler (panel ile küre aynı fotoğrafta kalsın diye).
+   */
+  index?: number;
+  /** Gösterilen fotoğraf değişince çağrılır (ör. kürenin dokusunu güncellemek için). */
+  onIndexChange?: (index: number) => void;
 }
 
 /** Yatay sürükleme eşiği (px); altında kalan hareket tıklama sayılır. */
@@ -32,17 +39,31 @@ export default function PhotoCarousel({
   onOpen,
   arrows = "hover",
   counter = false,
+  index: controlledIndex,
+  onIndexChange,
 }: PhotoCarouselProps) {
-  const [index, setIndex] = useState(0);
+  const [localIndex, setLocalIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ id: number; x: number; y: number; axis: "?" | "x" | "y"; width: number } | null>(null);
   const moved = useRef(false);
 
   // Fotoğraf sayısı azalırsa (ör. silme) indeks aralık dışında kalmasın
-  const current = Math.min(index, Math.max(0, images.length - 1));
+  // `index` verilip değişiklik bildirilmiyorsa denetim anlamsız olur: iç duruma düş.
+  const controlled = controlledIndex !== undefined && onIndexChange !== undefined;
+  const current = Math.min(
+    controlled ? controlledIndex : localIndex,
+    Math.max(0, images.length - 1),
+  );
 
-  const go = (next: number) => setIndex(Math.max(0, Math.min(images.length - 1, next)));
+  const go = useCallback(
+    (next: number) => {
+      const clamped = Math.max(0, Math.min(images.length - 1, next));
+      if (!controlled) setLocalIndex(clamped);
+      onIndexChange?.(clamped);
+    },
+    [images.length, controlled, onIndexChange],
+  );
 
   function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (images.length < 2) return;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 
@@ -8,6 +8,8 @@ interface PhotoViewerProps {
   /** Açılışta gösterilecek fotoğrafın sırası. */
   index: number;
   onClose: () => void;
+  /** Fotoğraf değişince çağrılır (ör. kürenin dokusunu güncellemek için). */
+  onIndexChange?: (index: number) => void;
 }
 
 /** Yatay sürüklemenin tıklamadan ayrıldığı eşik (px). */
@@ -18,7 +20,7 @@ const DRAG_START = 8;
  * Doğrudan <body>'ye çizilir (portal): dönüşümlü (transform) üst öğelerin içinde `position: fixed` bozulur,
  * yüzen düğmelerin altında da kalmaz.
  */
-export default function PhotoViewer({ images, index, onClose }: PhotoViewerProps) {
+export default function PhotoViewer({ images, index, onClose, onIndexChange }: PhotoViewerProps) {
   const [current, setCurrent] = useState(() => Math.max(0, Math.min(images.length - 1, index)));
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -27,7 +29,14 @@ export default function PhotoViewer({ images, index, onClose }: PhotoViewerProps
 
   // Fotoğraf sayısı azalırsa indeks aralık dışında kalmasın
   const shown = Math.max(0, Math.min(current, images.length - 1));
-  const go = (next: number) => setCurrent(Math.max(0, Math.min(images.length - 1, next)));
+  const go = useCallback(
+    (next: number) => {
+      const clamped = Math.max(0, Math.min(images.length - 1, next));
+      setCurrent(clamped);
+      onIndexChange?.(clamped);
+    },
+    [images.length, onIndexChange],
+  );
 
   // Arka plandaki sayfa kaymasın
   useEffect(() => {
@@ -42,12 +51,12 @@ export default function PhotoViewer({ images, index, onClose }: PhotoViewerProps
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowRight") setCurrent((c) => Math.min(images.length - 1, c + 1));
-      else if (e.key === "ArrowLeft") setCurrent((c) => Math.max(0, c - 1));
+      else if (e.key === "ArrowRight") go(shown + 1);
+      else if (e.key === "ArrowLeft") go(shown - 1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, images.length]);
+  }, [onClose, shown, go]);
 
   function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (images.length < 2) return;

@@ -1,7 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { Memory } from "../types";
 import {
   GLASS_SHEEN, GLASS_STRENGTH, GLOW_STRENGTH, ORB_COLORS, SPHERE_RADIUS, SPHERE_SEGMENTS,
 } from "./constants";
@@ -12,7 +11,8 @@ import {
 } from "./shaders";
 
 interface OrbProps {
-  memory: Memory;
+  /** Kürenin içinde görünecek fotoğraf (yoksa null). Panelde kaydırılınca değişir. */
+  image: string | null;
   /** Tarih sırasındaki dizini: dünyadaki yeri ve rengi buna bağlı. */
   index: number;
   selected: boolean;
@@ -40,7 +40,7 @@ const spinEuler = new THREE.Euler();
  * uzaktakiler tek çizimde nokta olarak çizilir (bkz. OrbField). Konumu dünyanın ortak durumundan gelir.
  * Seçilince küre YERİNDE KALIR; kamera onun etrafında döner (bkz. CameraRig). Seçim kalkınca da yerinden oynamaz.
  */
-function OrbImpl({ memory, index, selected, dimmed, store }: OrbProps) {
+function OrbImpl({ image, index, selected, dimmed, store }: OrbProps) {
   const groupRef = useRef<THREE.Group>(null);
   const scale = useRef(1);
 
@@ -48,19 +48,36 @@ function OrbImpl({ memory, index, selected, dimmed, store }: OrbProps) {
 
   // Fotoğraf dokusu (önbellekten ya da yüklenerek; küre uzaklaşıp yok olunca bırakılır)
   const [photo, setPhoto] = useState<THREE.CanvasTexture | null>(null);
+  /** Şu an gösterilen dokunun ödünç kaydı. Yeni doku hazır olana kadar eskisi bırakılmaz:
+   *  panelde kaydırınca küre bir an boş görünmesin. */
+  const shownLease = useRef<{ release: () => void } | null>(null);
+
   useEffect(() => {
-    if (!memory.image) return;
+    if (!image) {
+      shownLease.current?.release();
+      shownLease.current = null;
+      return;
+    }
     let cancelled = false;
-    const lease = acquirePhotoTexture(memory.image);
+    const lease = acquirePhotoTexture(image);
     lease.promise.then((tex) => {
-      if (!cancelled) setPhoto(tex);
+      if (cancelled) return;
+      const previous = shownLease.current;
+      shownLease.current = lease;
+      setPhoto(tex);
+      previous?.release(); // eski fotoğrafın dokusu artık gösterilmiyor
     });
     return () => {
       cancelled = true;
-      lease.release();
-      setPhoto(null);
+      if (shownLease.current !== lease) lease.release(); // hiç gösterilmedi
     };
-  }, [memory.image]);
+  }, [image]);
+
+  // Küre kapanınca gösterilen doku bırakılır
+  useEffect(() => () => {
+    shownLease.current?.release();
+    shownLease.current = null;
+  }, []);
 
   // Uniform nesneleri (materyaller JSX'te; zaman ref üzerinden güncellenir)
   const glowUniforms = useMemo(
@@ -119,7 +136,7 @@ function OrbImpl({ memory, index, selected, dimmed, store }: OrbProps) {
 
   return (
     <group ref={groupRef}>
-      {memory.image ? (
+      {image ? (
         <>
           {innerUniforms && (
             <mesh renderOrder={1}>

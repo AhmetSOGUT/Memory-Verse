@@ -13,6 +13,10 @@ interface OrbPanelProps {
   position?: { index: number; total: number };
   onPrev?: () => void;
   onNext?: () => void;
+  /** Panelde gösterilen fotoğrafın sırası; kürenin dokusu da bunu izler. */
+  photoIndex?: number;
+  /** Panelde (ya da tam ekranda) fotoğraf değişince çağrılır. */
+  onPhotoIndexChange?: (index: number) => void;
 }
 
 /** Telefondaki alt panel en fazla bu kadar küçülür: tamamen kapanmaz, tutamaç görünür kalır. */
@@ -29,7 +33,15 @@ const DRAG_RATIO = 1;
  * Not: Eski sürüm innerHTML ile string birleştiriyordu (başlık/açıklama kaçışsızdı → XSS).
  * React metni otomatik kaçırır.
  */
-export default function OrbPanel({ memory, onClose, position, onPrev, onNext }: OrbPanelProps) {
+export default function OrbPanel({
+  memory,
+  onClose,
+  position,
+  onPrev,
+  onNext,
+  photoIndex = 0,
+  onPhotoIndexChange,
+}: OrbPanelProps) {
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
   const [height, setHeight] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -92,7 +104,14 @@ export default function OrbPanel({ memory, onClose, position, onPrev, onNext }: 
       <div className="orb-panel__scroll">
         {images.length > 0 ? (
           <div className="orb-panel__photo">
-            <PhotoCarousel images={images} alt={memory.title} onOpen={setZoomIndex} counter />
+            <PhotoCarousel
+              images={images}
+              alt={memory.title}
+              onOpen={setZoomIndex}
+              counter
+              index={photoIndex}
+              onIndexChange={onPhotoIndexChange}
+            />
           </div>
         ) : (
           <div className="orb-panel__placeholder">💫</div>
@@ -115,7 +134,12 @@ export default function OrbPanel({ memory, onClose, position, onPrev, onNext }: 
       </div>
       <button className="orb-panel__close" onClick={onClose} aria-label="Kapat">✕</button>
       {zoomIndex !== null && images[zoomIndex] && (
-        <PhotoViewer images={images} index={zoomIndex} onClose={() => setZoomIndex(null)} />
+        <PhotoViewer
+          images={images}
+          index={zoomIndex}
+          onClose={() => setZoomIndex(null)}
+          onIndexChange={onPhotoIndexChange}
+        />
       )}
     </aside>
   );
