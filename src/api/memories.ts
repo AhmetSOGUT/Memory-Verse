@@ -14,11 +14,10 @@ export const updateMemory = (id: number, draft: MemoryDraft, expectedUpdatedAt?:
 
 export const deleteMemory = (id: number) => api<void>("DELETE", `/api/memories/${id}`);
 
-/** Tarayıcıda sıkıştırılmış base64 görseli dosya olarak yükler (sunucu yine de yeniden kodlar). */
-export async function setMemoryPhoto(id: number, dataUrl: string): Promise<Memory> {
-  const blob = await (await fetch(dataUrl)).blob();
+/** Seçilen fotoğrafı olduğu gibi (yeniden sıkıştırmadan) yükler. */
+export async function setMemoryPhoto(id: number, file: File): Promise<Memory> {
   const form = new FormData();
-  form.append("file", blob, "photo.jpg");
+  form.append("file", file, file.name || "photo");
   return api<Memory>("PUT", `/api/memories/${id}/photo`, { body: form });
 }
 

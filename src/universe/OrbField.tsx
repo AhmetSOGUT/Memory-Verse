@@ -14,8 +14,6 @@ interface OrbFieldProps {
   selectedId: number | null;
   /** Dokunmatik: tam çizilecek küre sayısı daha düşük (telefon GPU'su). */
   coarse: boolean;
-  /** Seçili küre ekranda nereye otursun: panelin yerine göre. */
-  layout: "center" | "sheet" | "side";
   /** Deneme modunda (?near=N) tam çizilecek küre sayısını geçersiz kılar. */
   maxOverride?: number;
 }
@@ -28,7 +26,7 @@ const STICKY = 0.8; // zaten tam çizilen küre, yer değiştirmek için rakipte
  * geri kalanı tek çizim çağrısında parlak nokta olarak (<FarOrbs>). Binlerce anıda bile akıcı kalmak için.
  * Seçili ve üzerine gelinen küre her zaman tam çizilir.
  */
-export function OrbField({ store, memories, selectedId, coarse, layout, maxOverride }: OrbFieldProps) {
+export function OrbField({ store, memories, selectedId, coarse, maxOverride }: OrbFieldProps) {
   const max = maxOverride ?? (coarse ? WORLD.nearMaxCoarse : WORLD.nearMax);
   const [nearList, setNearList] = useState<number[]>(() =>
     Array.from({ length: Math.min(memories.length, max) }, (_, i) => i),
@@ -87,7 +85,6 @@ export function OrbField({ store, memories, selectedId, coarse, layout, maxOverr
             selected={selectedId === memory.id}
             dimmed={selectedId !== null && selectedId !== memory.id}
             store={store}
-            layout={layout}
           />
         );
       })}

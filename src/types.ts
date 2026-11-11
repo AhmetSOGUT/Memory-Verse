@@ -20,7 +20,8 @@ export type MemoryDraft = Pick<Memory, "date" | "title" | "description" | "categ
 /** Kaydederken fotoğrafa ne olacağı. */
 export type PhotoChange =
   | { kind: "keep" }
-  | { kind: "set"; dataUrl: string }
+  /** Kullanıcının seçtiği dosya; sunucuya olduğu gibi (sıkıştırılmadan) yüklenir. */
+  | { kind: "set"; file: File }
   | { kind: "remove" };
 
 /** Giriş yapmış kullanıcı. */

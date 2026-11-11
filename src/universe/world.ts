@@ -197,22 +197,15 @@ export class WorldStore {
   near = new Set<number>();
   nearVersion = 0;
 
-  // ─── İnceleme modu: seçili küre kameranın önüne gelir, sürükleyerek döndürülür ───
-  /** Seçili kürenin ekranda görünen (kameranın önüne gelmiş) gerçek konumu: seçici bunu kullanır. */
-  selectedPos = new Float32Array(3);
-  /** Seçili küreyi incelerken kameradan uzaklığı (tekerlek/sıkıştırma ile değişir). */
+  // ─── İnceleme modu: kamera seçili kürenin etrafında döner, tekerlek/sıkıştırma yaklaştırır ───
+  /** Seçili küreyi incelerken kamera ile kürenin merkezi arasındaki uzaklık (0 = tam merkez). */
   focusDistance: number = WORLD.fly.dockDistance;
-  /** Sürüklemeden biriken, henüz küreye uygulanmamış dönüş (piksel). Seçili küre her karede tüketir. */
-  inspectDX = 0;
-  inspectDY = 0;
 
   /** Her karede World çağırır: anı sayısı ve seçili dizin. Konum dizisi (3·n) gerekirse yeniden ayrılır. */
   sync(n: number, selected: number): void {
     if (selected !== this.selected) {
-      // Yeni seçim: inceleme uzaklığı ve bekleyen dönüş sıfırlanır
+      // Yeni seçim: inceleme uzaklığı başlangıç değerine döner
       this.focusDistance = WORLD.fly.dockDistance;
-      this.inspectDX = 0;
-      this.inspectDY = 0;
     }
     this.n = n;
     this.selected = selected;
@@ -231,25 +224,8 @@ export class WorldStore {
     this.nearVersion++;
   }
 
-  setSelectedPos(x: number, y: number, z: number): void {
-    this.selectedPos[0] = x;
-    this.selectedPos[1] = y;
-    this.selectedPos[2] = z;
-  }
-
   setFocusDistance(d: number): void {
     this.focusDistance = Math.min(Math.max(d, WORLD.fly.focusMin), WORLD.fly.focusMax);
-  }
-
-  /** Sürükleme: küreyi döndürmek için piksel farkını biriktirir. */
-  addInspect(dx: number, dy: number): void {
-    this.inspectDX += dx;
-    this.inspectDY += dy;
-  }
-
-  clearInspect(): void {
-    this.inspectDX = 0;
-    this.inspectDY = 0;
   }
 }
 

@@ -24,8 +24,8 @@ const TAG_LEN = 16;
 const DB_NAME = "memory-verse.sqlite";
 const MANIFEST_NAME = "manifest.json";
 const MANIFEST_MAX = 16 * 1024 * 1024;
-const PHOTO_FILE = /^[a-f0-9]{32}\.webp$/;
-const PHOTO_ENTRY = /^photos\/[a-f0-9]{32}\.webp$/;
+const PHOTO_FILE = /^[a-f0-9]{32}\.(?:jpg|png|webp)$/;
+const PHOTO_ENTRY = /^photos\/[a-f0-9]{32}\.(?:jpg|png|webp)$/;
 const BACKUP_FILE = /^memory-verse-\d{4}-\d{2}-\d{2}_\d{6}\.mvbak$/;
 
 export class BackupError extends Error {}

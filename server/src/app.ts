@@ -32,8 +32,7 @@ export interface AppOptions {
 }
 
 /**
- * İçerik güvenlik politikası: yalnızca kendi kaynağımızdan betik/stil/font; görseller için data:/blob: (tarayıcıda sıkıştırma ve doku).
- * connect-src'deki data:/blob:, fetch(dataUrl) ile fotoğraf yüklemesi içindir.
+ * İçerik güvenlik politikası: yalnızca kendi kaynağımızdan betik/stil/font; görseller için data:/blob: (form önizlemesi ve doku).
  * style-src 'unsafe-inline': React'in style="..." öznitelikleri için (betik tarafı sıkı kalır).
  */
 const CSP = [
@@ -61,7 +60,7 @@ export function buildApp(db: DB, options: AppOptions) {
   registerHostCheck(app, options.allowedHosts ?? config.allowedHosts);
 
   app.register(multipart, {
-    limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 0, parts: 2 }, // en fazla 10 MB, tek dosya, alan yok
+    limits: { fileSize: 25 * 1024 * 1024, files: 1, fields: 0, parts: 2 }, // en fazla 25 MB (fotoğraflar yeniden sıkıştırılmaz), tek dosya
   });
   const photos = new PhotoStore(options.photosDir);
 

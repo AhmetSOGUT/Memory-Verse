@@ -91,8 +91,8 @@ export default function SpaceScene({ isOpen, onClose, memories: realMemories }: 
       <button className="space-close-btn" onClick={handleClose} aria-label="Evreni kapat">✕</button>
 
       <p className="space-hint">
-        <span className="hint-mouse">Sürükle: bak · Tekerlek / W-S: ileri-geri · Küreye tıkla: incele</span>
-        <span className="hint-touch">Sürükle: bak · İki parmak: ileri-geri · Küreye dokun: incele</span>
+        <span className="hint-mouse">Sürükle: bak · Tekerlek / W-S: ileri-geri · Küreye tıkla: incele · İncelemede sürükle: etrafında dön, tekerlek: yaklaş</span>
+        <span className="hint-touch">Sürükle: bak · İki parmak: ileri-geri · Küreye dokun: incele · İncelemede sürükle: etrafında dön, iki parmak: yaklaş</span>
       </p>
 
       {isOpen && selected && (

@@ -18,7 +18,7 @@ export const FOV_DEFAULT = 65;
 /** Dikey ekranda görüş açısının çıkabileceği en yüksek değer (aşırı balık gözü olmasın). */
 export const FOV_MAX_PORTRAIT = 100;
 /** Dar/dikey ekranda seçili küre, ekranın dikey ortasından bu kadar yukarı kayar (-1…1); alt panelin üstündeki alana oturur. */
-export const SHEET_FOCUS_NDC_Y = 0.32;
+export const SHEET_FOCUS_NDC_Y = 0.19;
 /** Yatay dokunmatik ekranda (panel sağda) seçili küre, ekranın yatay ortasından bu kadar sola kayar (-1…1). */
 export const SIDE_FOCUS_NDC_X = -0.42;
 /** Dokunmatikte küreye vurmayı kolaylaştıran görünmez dokunma alanı (küre yarıçapının katı). */
@@ -150,10 +150,14 @@ export const WORLD = {
     pinchGain: 0.9,
     /** Hız sönümü (1/sn). */
     damping: 3,
-    /** Küreyi incelerken kameradan başlangıç uzaklığı; tekerlek/sıkıştırma focusMin–focusMax arasında değiştirir. */
+    /** Küreyi incelerken kamera kürenin merkezinden bu uzaklıkta durur; tekerlek/sıkıştırma focusMin–focusMax arasında değiştirir. */
     dockDistance: 52,
-    focusMin: 26,
+    /** 0 = kamera kürenin tam merkezine kadar yaklaşabilir. */
+    focusMin: 0,
     focusMax: 120,
+    /** Tekerlek adımı başına inceleme uzaklığı değişimi (birim) ve sıkıştırma kazancı (piksel başına birim). */
+    zoomStep: 0.08,
+    pinchZoomGain: 0.25,
     /** Dış kabuğun ötesinde ne kadar uzaklaşılabilir (kaybolmasın). */
     bounds: 240,
   },

@@ -9,7 +9,7 @@ export interface DemoOptions {
   near: number | null;
 }
 
-const PHOTO_PATH = /^\/api\/photos\/[a-f0-9]{32}\.webp$/;
+const PHOTO_PATH = /^\/api\/photos\/[a-f0-9]{32}\.(?:jpg|png|webp)$/;
 
 /**
  * Gizli deneme modu seçenekleri. Örnek: ?demo=300&photo=/api/photos/XXXX.webp&near=300

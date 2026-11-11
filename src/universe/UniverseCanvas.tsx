@@ -73,6 +73,7 @@ export default function UniverseCanvas({ memories, selectedId, onSelect, onDesel
         store={store}
         count={memories.length}
         homeTick={homeTick}
+        layout={layout}
       />
       <World store={store} count={memories.length} selectedIndex={selectedIndex} />
 
@@ -94,7 +95,6 @@ export default function UniverseCanvas({ memories, selectedId, onSelect, onDesel
         memories={memories}
         selectedId={selectedId}
         coarse={coarse}
-        layout={layout}
         maxOverride={demo.near ?? undefined}
       />
       <Picker store={store} memories={memories} dragState={dragState} onSelect={onSelect} onDeselect={onDeselect} />

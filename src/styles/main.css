@@ -387,6 +387,8 @@ input[type=file] { cursor:pointer; }
     .orb-panel {
         top:auto; bottom:0; left:0; right:0; width:auto; max-width:none; transform:none;
         max-height:46vh; max-height:46dvh; display:flex; flex-direction:column;
+        height:var(--sheet-height, auto); /* tutamaçtan aşağı sürüklenince küçülür (OrbPanel.tsx) */
+        transition:height 0.22s cubic-bezier(0.2,0.8,0.2,1);
         border-radius:26px 26px 0 0; border-bottom:none; background:rgba(4,8,24,0.95);
         animation:orbSheetIn 0.45s 0.3s cubic-bezier(0.2,0.8,0.2,1) both;
     }
@@ -394,7 +396,20 @@ input[type=file] { cursor:pointer; }
         from { opacity:0; transform:translateY(40px); }
         to   { opacity:1; transform:none; }
     }
-    .orb-panel__grip { display:block; flex:none; width:40px; height:4px; border-radius:4px; background:rgba(255,255,255,0.28); margin:10px auto 0; }
+    /* Parmak paneldeyken geçiş kapalı: sürükleme gecikmesiz takip etsin */
+    .orb-panel--dragging { transition:none; user-select:none; -webkit-user-select:none; }
+
+    /* Tutamaç: görünen 4px çubuk + geniş görünmez dokunma alanı */
+    .orb-panel__grip {
+        display:block; flex:none; position:relative; z-index:1;
+        width:44px; height:5px; border-radius:4px; background:rgba(255,255,255,0.3);
+        margin:10px auto 0; cursor:grab; touch-action:none;
+    }
+    .orb-panel__grip::before {
+        content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+        width:150px; height:46px;
+    }
+    .orb-panel__grip:active { cursor:grabbing; background:rgba(255,255,255,0.45); }
     /* Fotoğraf küçük resim (yanında tarih + başlık), yazı altında kendi kutusunda kayar */
     .orb-panel__scroll {
         flex:1; min-height:0; overflow:hidden;

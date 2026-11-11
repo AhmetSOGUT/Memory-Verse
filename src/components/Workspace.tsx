@@ -215,7 +215,7 @@ function Workspace({ user, onLogout }: WorkspaceProps) {
     // 2) Fotoğraf. Anı artık kayıtlı olduğundan bir hata formu açık tutmaz (çift kayıt olmasın).
     let photoError: string | null = null;
     try {
-      if (photo.kind === "set") await setMemoryPhoto(saved.id, photo.dataUrl);
+      if (photo.kind === "set") await setMemoryPhoto(saved.id, photo.file);
       else if (photo.kind === "remove") await removeMemoryPhoto(saved.id);
     } catch (err) {
       photoError = errorMessage(err);

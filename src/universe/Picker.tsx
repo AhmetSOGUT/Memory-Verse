@@ -40,9 +40,7 @@ export function Picker({ store, memories, dragState, onSelect, onDeselect }: Pic
       const base = touch ? WORLD.pickRadius.touch : WORLD.pickRadius.mouse;
       let best = -1, bestScore = Infinity, bestDepth = Infinity;
       for (let i = 0; i < g.n; i++) {
-        // Seçili küre kameranın önüne gelmiştir: gerçek (görünen) konumundan ölçülür
-        if (i === g.selected) v.fromArray(g.selectedPos, 0);
-        else v.fromArray(g.pos, i * 3);
+        v.fromArray(g.pos, i * 3);
         const depth = v.distanceTo(cam.position);
         v.project(cam);
         if (v.z > 1) continue; // kameranın arkasında

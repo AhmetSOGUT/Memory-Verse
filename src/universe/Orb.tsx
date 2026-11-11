@@ -3,8 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Memory } from "../types";
 import {
-  GLASS_SHEEN, GLASS_STRENGTH, GLOW_STRENGTH, ORB_COLORS, SHEET_FOCUS_NDC_Y, SIDE_FOCUS_NDC_X, SPHERE_RADIUS,
-  SPHERE_SEGMENTS,
+  GLASS_SHEEN, GLASS_STRENGTH, GLOW_STRENGTH, ORB_COLORS, SPHERE_RADIUS, SPHERE_SEGMENTS,
 } from "./constants";
 import { visualScale, type WorldStore } from "./world";
 import { acquirePhotoTexture } from "./generate";
@@ -21,8 +20,6 @@ interface OrbProps {
   dimmed: boolean;
   /** Dünyanın canlı durumu: kürenin konumu buradan okunur. */
   store: React.RefObject<WorldStore>;
-  /** Seçilince küre ekranda nereye otursun: panelin yerine göre (telefonda panelin üstüne, yatayda panelin soluna). */
-  layout: "center" | "sheet" | "side";
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -35,27 +32,17 @@ const GEO = {
 };
 
 // Kare başına nesne üretmemek için ortak geçici nesneler
-const camForward = new THREE.Vector3();
-const camRight = new THREE.Vector3();
-const camUp = new THREE.Vector3();
-const focusTarget = new THREE.Vector3();
 const spinQ = new THREE.Quaternion();
-const turnQ = new THREE.Quaternion();
 const spinEuler = new THREE.Euler();
-const IDENTITY_Q = new THREE.Quaternion();
-const INSPECT_SPEED = 0.008; // piksel başına dönüş (rad)
 
 /**
  * Tam ayrıntıyla çizilen küre (cam + içinde fotoğraf + hale). Yalnızca kameraya yakın küreler için oluşturulur;
  * uzaktakiler tek çizimde nokta olarak çizilir (bkz. OrbField). Konumu dünyanın ortak durumundan gelir.
- * Seçilince kamera yerinden kıpırdamaz: ekran küreye döner (bkz. CameraRig), küre kameranın önüne gelir ve
- * sürüklenince döner (inceleme). Seçim kalkınca yerine süzülür.
+ * Seçilince küre YERİNDE KALIR; kamera onun etrafında döner (bkz. CameraRig). Seçim kalkınca da yerinden oynamaz.
  */
-function OrbImpl({ memory, index, selected, dimmed, store, layout }: OrbProps) {
+function OrbImpl({ memory, index, selected, dimmed, store }: OrbProps) {
   const groupRef = useRef<THREE.Group>(null);
   const scale = useRef(1);
-  const focus = useRef(0); // 0 → dünyadaki yerinde, 1 → kameranın önünde
-  const inspectQ = useRef(new THREE.Quaternion()); // kullanıcının sürükleyerek verdiği dönüş
 
   const color = useMemo(() => new THREE.Color(ORB_COLORS[index % ORB_COLORS.length]), [index]);
 
@@ -110,57 +97,24 @@ function OrbImpl({ memory, index, selected, dimmed, store, layout }: OrbProps) {
 
     // 60 fps'e göre normalize edilmiş yumuşatma (orijinal sabitler 60 fps içindi)
     const k = Math.min(delta * 60, 3);
-    focus.current = lerp(focus.current, selected ? 1 : 0, 1 - Math.pow(1 - 0.045, k));
-    const f = focus.current;
 
-    // Dünyadaki yeri (kabuğun dönüşü ve gezinme dahil); seçiliyse kameranın tam önüne gelir
+    // Dünyadaki yeri (kabuğun dönüşü ve gezinme dahil). Küre seçilince de YERİNDE kalır;
+    // incelemede kamerayı kürenin etrafında döndüren CameraRig'dir.
     const o = index * 3;
     const p = g.pos;
-    let x = p[o] ?? 0, y = p[o + 1] ?? 0, z = p[o + 2] ?? 0;
-    if (f > 0.0005) {
-      camera.getWorldDirection(camForward);
-      const d = g.focusDistance;
-      focusTarget.copy(camera.position).addScaledVector(camForward, d);
-      const halfH = d * Math.tan(THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov / 2));
-      if (layout === "sheet") {
-        camUp.setFromMatrixColumn(camera.matrixWorld, 1);
-        focusTarget.addScaledVector(camUp, SHEET_FOCUS_NDC_Y * halfH); // telefonda alt panelin üstüne
-      } else if (layout === "side") {
-        camRight.setFromMatrixColumn(camera.matrixWorld, 0);
-        focusTarget.addScaledVector(camRight, SIDE_FOCUS_NDC_X * halfH * (camera as THREE.PerspectiveCamera).aspect); // yatayda panelin soluna
-      }
-      x = lerp(x, focusTarget.x, f);
-      y = lerp(y, focusTarget.y, f);
-      z = lerp(z, focusTarget.z, f);
-    }
-    grp.position.set(x, y, z);
-    if (selected) g.setSelectedPos(x, y, z); // seçici, kameranın önüne gelen küreye dokunmayı "boşluğa dokunma" saymasın
+    grp.position.set(p[o] ?? 0, p[o + 1] ?? 0, p[o + 2] ?? 0);
 
     // Boyut: uzaktan bakınca orantılı büyür (küçücük nokta olmasın); seçili büyük, üzerine gelinen biraz şişer
     const vis = visualScale(grp.position.distanceTo(camera.position));
     const hovered = g.hovered === index;
-    const tScale = selected ? (layout === "center" ? 1.45 : 1.1) : (dimmed ? 0.75 : hovered ? 1.12 : 1) * vis;
+    const tScale = selected ? 1.45 : (dimmed ? 0.75 : hovered ? 1.12 : 1) * vis;
     scale.current = lerp(scale.current, tScale, 1 - Math.pow(1 - 0.05, k));
     grp.scale.setScalar(scale.current);
 
-    // Dönüş: kendi yavaş dönüşü + (seçiliyken) kullanıcının sürükleyerek verdiği dönüş
-    if (selected) {
-      if (g.inspectDX !== 0 || g.inspectDY !== 0) {
-        // Kameranın yukarı/sağ eksenleri etrafında döndür: parmağın/farenin gittiği yöne yüzey akar
-        camUp.setFromMatrixColumn(camera.matrixWorld, 1);
-        camRight.setFromMatrixColumn(camera.matrixWorld, 0);
-        turnQ.setFromAxisAngle(camUp, g.inspectDX * INSPECT_SPEED);
-        inspectQ.current.premultiply(turnQ);
-        turnQ.setFromAxisAngle(camRight, g.inspectDY * INSPECT_SPEED);
-        inspectQ.current.premultiply(turnQ);
-        g.clearInspect();
-      }
-    } else {
-      inspectQ.current.slerp(IDENTITY_Q, 1 - Math.pow(1 - 0.08, k)); // seçim kalkınca verilen dönüş yavaşça silinir
-    }
+    // Dönüş: kendi yavaş dönüşü (kullanıcı küreyi değil, kamerayı döndürür)
     spinEuler.set(0, t * 0.08 + index * 0.6, 0);
     spinQ.setFromEuler(spinEuler);
-    grp.quaternion.copy(inspectQ.current).multiply(spinQ);
+    grp.quaternion.copy(spinQ);
   });
 
   return (

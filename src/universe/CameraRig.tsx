@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { fovForAspect } from "./camera";
-import { FOV_DEFAULT, WORLD } from "./constants";
+import { FOV_DEFAULT, SHEET_FOCUS_NDC_Y, SIDE_FOCUS_NDC_X, WORLD } from "./constants";
 import { writeSlot, worldRadius, type WorldStore } from "./world";
 
 interface CameraRigProps {
@@ -15,11 +15,21 @@ interface CameraRigProps {
   count: number;
   /** Değiştikçe kamera merkeze döner. */
   homeTick: number;
+  /** Seçili küre incelenirken ekranda nereye otursun: panelin yerine göre. */
+  layout: "center" | "sheet" | "side";
 }
 
 const DRAG_THRESHOLD_PX = 6;
 const IDLE_RESUME_MS = 3000;
 const PITCH_LIMIT = Math.PI / 2 - 0.05;
+/** İncelemede sürükleme: piksel başına yörünge dönüşü (rad). */
+const ORBIT_SPEED = 0.005;
+const ORBIT_PITCH_SPEED = 0.004;
+/** Orb değiştirirken kamera geçişinin süresi (sn). Büyütmek geçişi yavaşlatır. */
+const TRANSITION_SECONDS = 0.75;
+/** Kamera kürenin merkezine bu kadar yakınsa bakış yönü açılardan verilir (lookAt kararsızlaşır). */
+const ORBIT_CENTER_EPS = 0.5;
+const smoothstep = (t: number) => t * t * (3 - 2 * t);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const UP = new THREE.Vector3(0, 1, 0);
 const KEY_MOVES: Record<string, "fwd" | "back" | "left" | "right" | "up" | "down"> = {
@@ -31,10 +41,10 @@ const KEY_MOVES: Record<string, "fwd" | "back" | "left" | "right" | "up" | "down
  * Kamera iki modda çalışır:
  *  - GEZİNME (hiçbir küre seçili değil): dünyanın içinde uçarsın. Sürükle = etrafına bak; tekerlek, W/S ya da iki parmakla
  *    sıkıştırma = ileri/geri; A/D yana; E/Q yukarı/aşağı; Shift = hızlı. Hız, en yakın küreye uzaklığa göre ayarlanır.
- *  - İNCELEME (bir küre seçili): kamera YERİNDEN KIPIRDAMAZ, ekranı küreye doğru döndürür; küre sana gelir (bkz. Orb).
- *    Sürükle = küreyi tutup döndür; tekerlek/sıkıştırma = küreyi yaklaştır/uzaklaştır.
+ *  - İNCELEME (bir küre seçili): küre YERİNDE KALIR; kamera onun etrafında döner. Sürükle = kürenin etrafında dön;
+ *    tekerlek/sıkıştırma = yaklaş/uzaklaş (merkezine kadar yaklaşılabilir).
  */
-export function CameraRig({ autoRotate, dragState, store, count, homeTick }: CameraRigProps) {
+export function CameraRig({ autoRotate, dragState, store, count, homeTick, layout }: CameraRigProps) {
   const { camera, gl } = useThree();
   const s = useRef({
     pos: new THREE.Vector3(),
@@ -42,6 +52,9 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick }: Cam
     dragging: false,
     lastX: 0, lastY: 0, startX: 0, startY: 0,
     yaw: 0, pitch: 0, targetYaw: 0, targetPitch: 0,
+    orbitYaw: 0, orbitPitch: 0, // seçili küre etrafındaki yörünge açıları
+    // Orb değişimi geçişi: yalnızca geçiş sırasında kullanılır (1 = geçiş bitti)
+    transFrom: new THREE.Vector3(), transQuat: new THREE.Quaternion(), transT: 1,
     idleUntil: 0,
     keys: { fwd: false, back: false, left: false, right: false, up: false, down: false, fast: false },
     pinchMove: 0, // sıkıştırmadan biriken ileri/geri hareket (piksel)
@@ -89,8 +102,8 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick }: Cam
       if (pointers.size === 2) {
         const now = fingerDistance();
         if (g.selected >= 0) {
-          // İnceleme: parmaklar açılırsa küre yaklaşır
-          g.setFocusDistance(g.focusDistance * (pinchPrev / Math.max(now, 1)));
+          // İnceleme: parmaklar açılırsa küreye yaklaş (merkeze kadar)
+          g.setFocusDistance(g.focusDistance - (now - pinchPrev) * WORLD.fly.pinchZoomGain);
         } else {
           // Gezinme: parmaklar açılırsa ileri, kapanırsa geri
           st.pinchMove += now - pinchPrev;
@@ -102,7 +115,9 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick }: Cam
       if (!st.dragging) return;
       const dx = e.clientX - st.lastX, dy = e.clientY - st.lastY;
       if (g.selected >= 0) {
-        g.addInspect(dx, dy); // küreyi tut ve döndür
+        // İnceleme: küre yerinde kalır, kamera onun etrafında döner
+        st.orbitYaw -= dx * ORBIT_SPEED;
+        st.orbitPitch = clamp(st.orbitPitch + dy * ORBIT_PITCH_SPEED, -PITCH_LIMIT, PITCH_LIMIT);
       } else {
         st.targetYaw -= dx * 0.004;
         st.targetPitch = clamp(st.targetPitch - dy * 0.003, -PITCH_LIMIT, PITCH_LIMIT);
@@ -133,8 +148,8 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick }: Cam
       e.preventDefault();
       const dy = e.deltaY * (e.deltaMode === 1 ? 33 : 1);
       if (g.selected >= 0) {
-        // İnceleme: aşağı kaydırma küreyi uzaklaştırır, yukarı yaklaştırır
-        g.setFocusDistance(g.focusDistance * Math.exp(dy * 0.0015));
+        // İnceleme: aşağı kaydırma uzaklaştırır, yukarı yaklaştırır (merkeze kadar)
+        g.setFocusDistance(g.focusDistance + dy * WORLD.fly.zoomStep);
         return;
       }
       st.goHome = false;
@@ -221,25 +236,50 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick }: Cam
       st.speedScale = clamp(Math.sqrt(nearest) / 60, 0.4, 3);
     }
 
-    // Yeni seçim: ekran küreye doğru DÖNER (kamera yerinde kalır); küre ona doğru gelir (bkz. Orb)
-    if (g.selected !== st.seenSelected) {
-      st.seenSelected = g.selected;
-      if (g.selected >= 0) {
-        tmpOrb.fromArray(g.pos, g.selected * 3);
-        const dx = tmpOrb.x - st.pos.x, dy = tmpOrb.y - st.pos.y, dz = tmpOrb.z - st.pos.z;
-        const len = Math.hypot(dx, dy, dz);
-        if (len > 1) {
-          st.targetYaw += wrapPi(Math.atan2(dx, dz) - st.targetYaw);
-          st.targetPitch = clamp(Math.asin(clamp(dy / len, -1, 1)), -PITCH_LIMIT, PITCH_LIMIT);
-        }
-        st.goHome = false;
+    const sel = g.selected >= 0 && g.selected < g.n ? g.selected : -1;
+
+    // Seçim değişti: inceleme moduna gir / çık
+    if (sel !== st.seenSelected) {
+      const prev = st.seenSelected;
+      st.seenSelected = sel;
+      if (sel >= 0) {
+        // Yeni küre: yörünge açıları mevcut bakış yönünden başlar.
+        // Geçiş başlangıcı kaydedilir; sadece bu süre boyunca yumuşak süzülür.
+        initOrbit(st, g);
+        st.transFrom.copy(st.pos);
+        st.transQuat.copy(cam.quaternion);
+        st.transT = 0;
         st.vel.set(0, 0, 0);
         st.pinchMove = 0;
+        st.goHome = false;
+      } else if (prev >= 0) {
+        // İnceleme bitti: serbest bakış mevcut yönden sürsün (kamera sıçramasın)
+        st.transT = 1;
+        cam.getWorldDirection(tmpForward);
+        st.yaw = st.targetYaw = Math.atan2(tmpForward.x, tmpForward.z);
+        st.pitch = st.targetPitch = clamp(Math.asin(clamp(tmpForward.y, -1, 1)), -PITCH_LIMIT, PITCH_LIMIT);
+        st.vel.set(0, 0, 0);
       }
     }
 
-    if (g.selected >= 0) {
-      st.vel.set(0, 0, 0); // inceleme modunda yürüme yok
+    if (sel >= 0) {
+      // İnceleme: küre yerinde kalır; kamera onun canlı konumunun etrafında döner
+      st.vel.set(0, 0, 0);
+      tmpOrb.fromArray(g.pos, sel * 3);
+      const d = g.focusDistance;
+      const cp = Math.cos(st.orbitPitch);
+      tmpCamTarget.set(
+        tmpOrb.x + Math.sin(st.orbitYaw) * cp * d,
+        tmpOrb.y + Math.sin(st.orbitPitch) * d,
+        tmpOrb.z + Math.cos(st.orbitYaw) * cp * d,
+      );
+      // Geçiş sırasında başlangıç konumundan yörüngeye süzül; sonra tam yörüngede kal (kayma yok).
+      if (st.transT < 1) {
+        st.transT = Math.min(1, st.transT + dt / TRANSITION_SECONDS);
+        st.pos.lerpVectors(st.transFrom, tmpCamTarget, smoothstep(st.transT));
+      } else {
+        st.pos.copy(tmpCamTarget);
+      }
     } else if (st.goHome) {
       st.pos.lerp(ORIGIN, 1 - Math.pow(1 - 0.05, k));
       st.vel.set(0, 0, 0);
@@ -276,16 +316,29 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick }: Cam
     }
 
     // Boşta yavaşça dön (seçili küre yokken); fare/parmak/seçim varken dünyayla birlikte yavaşlar
-    if (!st.dragging && autoRotateRef.current && !st.goHome && performance.now() > st.idleUntil) {
+    if (sel < 0 && !st.dragging && autoRotateRef.current && !st.goHome && performance.now() > st.idleUntil) {
       st.targetYaw += (WORLD.cameraIdle / 60) * k * g.motion;
     }
-    const ease = 1 - Math.pow(1 - 0.06, k);
-    st.yaw += (st.targetYaw - st.yaw) * ease;
-    st.pitch += (st.targetPitch - st.pitch) * ease;
 
-    lookVector(st, tmpForward);
-    cam.position.copy(st.pos);
-    cam.lookAt(st.pos.x + tmpForward.x * 100, st.pos.y + tmpForward.y * 100, st.pos.z + tmpForward.z * 100);
+    if (sel >= 0) {
+      // Kamera kürenin merkezine bakar; panelin yerine göre ekranda kaydırılır.
+      // Geçiş anında başlangıç yönünden hedefe süzülür; geçiş bitince tam merkeze bakar.
+      tmpOrb.fromArray(g.pos, sel * 3);
+      const transitioning = st.transT < 1;
+      placeOrbitCamera(
+        cam, st, g.focusDistance, layout, tmpOrb,
+        transitioning ? st.transQuat : null,
+        transitioning ? smoothstep(st.transT) : 1,
+      );
+    } else {
+      const ease = 1 - Math.pow(1 - 0.06, k);
+      st.yaw += (st.targetYaw - st.yaw) * ease;
+      st.pitch += (st.targetPitch - st.pitch) * ease;
+
+      lookVector(st, tmpForward);
+      cam.position.copy(st.pos);
+      cam.lookAt(st.pos.x + tmpForward.x * 100, st.pos.y + tmpForward.y * 100, st.pos.z + tmpForward.z * 100);
+    }
     cam.updateMatrixWorld(); // Orb ve seçici aynı karede güncel kamera eksenlerini okusun
 
     // Görüş açısı sabit; yalnızca dikey ekran için genişletilir
@@ -305,6 +358,9 @@ const tmpForward = new THREE.Vector3();
 const tmpRight = new THREE.Vector3();
 const tmpMove = new THREE.Vector3();
 const tmpOrb = new THREE.Vector3();
+const tmpCamTarget = new THREE.Vector3();
+const tmpAim = new THREE.Vector3();
+const tmpQuatTo = new THREE.Quaternion();
 const tmpSlot = new Float32Array(3);
 
 /** yaw/pitch'ten birim bakış vektörü. */
@@ -312,7 +368,76 @@ function lookVector(st: { yaw: number; pitch: number }, out: THREE.Vector3): THR
   return out.set(Math.sin(st.yaw) * Math.cos(st.pitch), Math.sin(st.pitch), Math.cos(st.yaw) * Math.cos(st.pitch));
 }
 
-/** Açı farkını (-π, π] aralığına sarar: kamera uzun yoldan dönmesin. */
-function wrapPi(a: number): number {
-  return Math.atan2(Math.sin(a), Math.cos(a));
+/**
+ * Seçim başlarken yörünge açılarını kameranın küreye göre ŞU ANKİ yönünden kurar:
+ * kamera nereden bakıyorsa küreye o taraftan yaklaşır. Uzaklık da başlangıç değerine döner.
+ */
+function initOrbit(
+  st: { pos: THREE.Vector3; orbitYaw: number; orbitPitch: number },
+  g: WorldStore,
+): void {
+  tmpOrb.fromArray(g.pos, g.selected * 3);
+  const dx = st.pos.x - tmpOrb.x, dy = st.pos.y - tmpOrb.y, dz = st.pos.z - tmpOrb.z;
+  const len = Math.hypot(dx, dy, dz);
+  if (len > 1e-3) {
+    st.orbitYaw = Math.atan2(dx, dz);
+    st.orbitPitch = clamp(Math.asin(clamp(dy / len, -1, 1)), -PITCH_LIMIT, PITCH_LIMIT);
+  } else {
+    st.orbitYaw = 0;
+    st.orbitPitch = 0;
+  }
+  g.setFocusDistance(WORLD.fly.dockDistance);
+}
+
+/**
+ * İnceleme kamerasını yerleştirir: konum kürenin etrafındaki yörüngede, bakış kürenin merkezine.
+ * Panelin yerine göre bakış hedefi ekranda kaydırılır, böylece küre panelin altında/sağında kalmaz.
+ */
+function placeOrbitCamera(
+  cam: THREE.PerspectiveCamera,
+  st: { pos: THREE.Vector3; orbitYaw: number; orbitPitch: number },
+  focusDistance: number,
+  layout: "center" | "sheet" | "side",
+  pivot: THREE.Vector3,
+  fromQuat: THREE.Quaternion | null,
+  blend: number,
+): void {
+  cam.position.copy(st.pos);
+
+  const cy = Math.cos(st.orbitYaw), sy = Math.sin(st.orbitYaw);
+  const cp = Math.cos(st.orbitPitch), sp = Math.sin(st.orbitPitch);
+  const halfH = focusDistance * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+
+  // Bakış hedefi (varsayılan: kürenin merkezi)
+  tmpAim.copy(pivot);
+  if (layout === "sheet") {
+    // Küre ekranın üstünde kalsın: hedefi aşağı kaydır (kamera eksenleri yörünge açılarından)
+    const up = SHEET_FOCUS_NDC_Y * halfH;
+    tmpAim.x -= -sy * sp * up;
+    tmpAim.y -= cp * up;
+    tmpAim.z -= -cy * sp * up;
+  } else if (layout === "side") {
+    // Küre ekranın solunda kalsın: hedefi sağa kaydır
+    const right = -SIDE_FOCUS_NDC_X * halfH * cam.aspect;
+    tmpAim.x += cy * right;
+    tmpAim.z += -sy * right;
+  }
+
+  // Hedef bakış yönü: her zaman tam olarak kürenin merkezine (panel kaydırması hariç).
+  if (st.pos.distanceToSquared(pivot) > ORBIT_CENTER_EPS * ORBIT_CENTER_EPS) {
+    cam.lookAt(tmpAim);
+  } else {
+    // Tam merkezde hedef kamera konumuyla çakışır: yönü doğrudan yörünge açılarından ver
+    cam.lookAt(
+      st.pos.x - sy * cp * 100,
+      st.pos.y - sp * 100,
+      st.pos.z - cy * cp * 100,
+    );
+  }
+
+  // Yalnızca geçiş sırasında: başlangıç yönünden hedefe yumuşak dönüş.
+  if (fromQuat) {
+    tmpQuatTo.copy(cam.quaternion);
+    cam.quaternion.copy(fromQuat).slerp(tmpQuatTo, blend);
+  }
 }

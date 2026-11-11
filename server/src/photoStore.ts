@@ -10,16 +10,19 @@ export class PhotoError extends Error {
   }
 }
 
-const ALLOWED_FORMATS = new Set(["jpeg", "png", "webp"]); // SVG gibi betik taşıyabilen biçimler YOK
-const MAX_DIMENSION = 1600;
-const MAX_INPUT_PIXELS = 40_000_000; // "dekompresyon bombası" koruması
-const NAME_PATTERN = /^[a-f0-9]{32}\.webp$/;
+/** İzin verilen biçimler ve diskteki uzantıları (SVG gibi betik taşıyabilen biçimler YOK). */
+const ALLOWED_FORMATS = new Map([
+  ["jpeg", "jpg"],
+  ["png", "png"],
+  ["webp", "webp"],
+]);
+const NAME_PATTERN = /^[a-f0-9]{32}\.(?:jpg|png|webp)$/;
 
 /**
- * Fotoğraf deposu. Yüklenen her dosya yeniden kodlanır:
- *  - gerçekten bir görsel olduğu doğrulanır (uzantıya/Content-Type'a güvenilmez)
- *  - EXIF (konum, cihaz, tarih) tamamen silinir
- *  - yön düzeltilir, boyut sınırlanır, WebP'ye çevrilir
+ * Fotoğraf deposu. Yüklenen dosya **hiç yeniden kodlanmadan**, geldiği gibi saklanır:
+ *  - kalite kaybı yok, çözünürlük düşmez (kullanıcı neyi yüklediyse o kalır)
+ *  - gerçekten bir görsel olduğu yine doğrulanır (uzantıya/Content-Type'a güvenilmez)
+ *  - EXIF (yön, cihaz, tarih) da korunur; yön bilgisini tarayıcılar kendisi uygular
  * Dosya adı rastgeledir; kullanıcıdan gelen hiçbir şey dosya yoluna girmez.
  */
 export class PhotoStore {
@@ -37,25 +40,19 @@ export class PhotoStore {
   }
 
   async save(input: Buffer): Promise<string> {
-    let output: Buffer;
+    let format: string | undefined;
     try {
-      const image = sharp(input, { limitInputPixels: MAX_INPUT_PIXELS, failOn: "error" });
-      const meta = await image.metadata();
-      if (!meta.format || !ALLOWED_FORMATS.has(meta.format)) {
-        throw new PhotoError("Yalnızca JPEG, PNG veya WebP yüklenebilir", 415);
-      }
-      output = await image
-        .rotate() // EXIF yönüne göre düzelt (sonra metadata atılır)
-        .resize({ width: MAX_DIMENSION, height: MAX_DIMENSION, fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 82 })
-        .toBuffer();
-    } catch (err) {
-      if (err instanceof PhotoError) throw err;
+      // Yalnızca başlığı okur (çözmez): dosya gerçekten bir görsel mi?
+      format = (await sharp(input, { failOn: "error" }).metadata()).format;
+    } catch {
       throw new PhotoError("Dosya geçerli bir görsel değil", 400);
     }
 
-    const name = `${randomBytes(16).toString("hex")}.webp`;
-    await fs.promises.writeFile(path.join(this.dir, name), output, { flag: "wx" });
+    const ext = format ? ALLOWED_FORMATS.get(format) : undefined;
+    if (!ext) throw new PhotoError("Yalnızca JPEG, PNG veya WebP yüklenebilir", 415);
+
+    const name = `${randomBytes(16).toString("hex")}.${ext}`;
+    await fs.promises.writeFile(path.join(this.dir, name), input, { flag: "wx" });
     return name;
   }
 

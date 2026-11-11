@@ -39,25 +39,49 @@ describe("fotoğraf API'si", () => {
   });
   afterEach(() => ctx.cleanup());
 
-  it("fotoğrafı yükler, küçültür, WebP'ye çevirir ve güvenli başlıklarla servis eder", async () => {
-    const res = await upload(id, "tatil.jpg", "image/jpeg", await jpeg(3000, 2000));
+  it("fotoğrafı yeniden kodlamadan, yüklenen baytlarla saklar", async () => {
+    const original = await jpeg(3000, 2000);
+    const res = await upload(id, "tatil.jpg", "image/jpeg", original);
     assert.equal(res.statusCode, 200);
     const url: string = res.json().image;
-    assert.match(url, /^\/api\/photos\/[a-f0-9]{32}\.webp$/);
+    assert.match(url, /^\/api\/photos\/[a-f0-9]{32}\.jpg$/);
 
     const img = await app.inject({ method: "GET", url });
     assert.equal(img.statusCode, 200);
-    assert.equal(img.headers["content-type"], "image/webp");
+    assert.equal(img.headers["content-type"], "image/jpeg");
     assert.equal(img.headers["x-content-type-options"], "nosniff");
     assert.match(String(img.headers["cache-control"]), /private/);
 
+    // Kalite kaybı yok: diskteki ve servis edilen dosya, yüklenenin birebir aynısı
+    assert.deepEqual(img.rawPayload, original);
+
     const meta = await sharp(img.rawPayload).metadata();
-    assert.equal(meta.format, "webp");
-    assert.equal(meta.width, 1600); // 3000 → 1600 (en uzun kenar)
-    assert.equal(meta.height, Math.round((2000 * 1600) / 3000));
+    assert.equal(meta.format, "jpeg");
+    assert.equal(meta.width, 3000); // küçültme yok
+    assert.equal(meta.height, 2000);
   });
 
-  it("EXIF (konum/cihaz) bilgisini siler", async () => {
+  it("PNG ve WebP'yi de olduğu gibi saklar, içerik türünü uzantıya göre verir", async () => {
+    const png = await sharp({ create: { width: 64, height: 48, channels: 3, background: "#00ff00" } })
+      .png()
+      .toBuffer();
+    const pngRes = await upload(id, "x.png", "image/png", png);
+    assert.match(pngRes.json().image, /\.png$/);
+    const pngGet = await app.inject({ method: "GET", url: pngRes.json().image });
+    assert.equal(pngGet.headers["content-type"], "image/png");
+    assert.deepEqual(pngGet.rawPayload, png);
+
+    const webp = await sharp({ create: { width: 40, height: 40, channels: 3, background: "#0000ff" } })
+      .webp()
+      .toBuffer();
+    const webpRes = await upload(id, "y.webp", "image/webp", webp);
+    assert.match(webpRes.json().image, /\.webp$/);
+    const webpGet = await app.inject({ method: "GET", url: webpRes.json().image });
+    assert.equal(webpGet.headers["content-type"], "image/webp");
+    assert.deepEqual(webpGet.rawPayload, webp);
+  });
+
+  it("EXIF (yön/cihaz) verisini korur: dosyaya dokunulmaz", async () => {
     const withExif = await sharp({ create: { width: 200, height: 200, channels: 3, background: "#000" } })
       .jpeg()
       .withExif({ IFD0: { ImageDescription: "GIZLI-KONUM-41.01,28.97" } })
@@ -65,10 +89,10 @@ describe("fotoğraf API'si", () => {
     assert.ok(withExif.includes("GIZLI-KONUM"), "test görseli EXIF taşımalı");
 
     const res = await upload(id, "x.jpg", "image/jpeg", withExif);
-    const stored = fs.readFileSync(path.join(ctx.photosDir, files()[0]));
-    assert.equal(stored.includes("GIZLI-KONUM"), false);
-    assert.equal((await sharp(stored).metadata()).exif, undefined);
     assert.equal(res.statusCode, 200);
+    // Orijinal kalite istendiği için EXIF de olduğu gibi kalır (yeniden kodlama yok)
+    const stored = fs.readFileSync(path.join(ctx.photosDir, files()[0]));
+    assert.ok(stored.equals(withExif));
   });
 
   it("görsel olmayan dosyayı, uzantısı .jpg olsa bile reddeder", async () => {
@@ -84,20 +108,24 @@ describe("fotoğraf API'si", () => {
     assert.deepEqual(files(), []);
   });
 
-  it("10 MB'tan büyük dosyayı reddeder", async () => {
-    const res = await upload(id, "dev.jpg", "image/jpeg", Buffer.alloc(11 * 1024 * 1024, 1));
+  it("25 MB'tan büyük dosyayı reddeder", async () => {
+    const res = await upload(id, "dev.jpg", "image/jpeg", Buffer.alloc(26 * 1024 * 1024, 1));
     assert.equal(res.statusCode, 413);
     assert.deepEqual(files(), []);
   });
 
-  it("aşırı piksel sayılı görseli (dekompresyon bombası) reddeder", async () => {
-    const bomb = await sharp({ create: { width: 7000, height: 7000, channels: 3, background: "#000" } })
+  it("çok büyük pikselli geçerli görseli de olduğu gibi saklar (küçültme yok)", async () => {
+    const big = await sharp({ create: { width: 7000, height: 5000, channels: 3, background: "#000" } })
       .png({ compressionLevel: 9 })
       .toBuffer();
-    assert.ok(bomb.length < 10 * 1024 * 1024, "bomba küçük bir dosya olmalı");
-    const res = await upload(id, "bomba.png", "image/png", bomb);
-    assert.equal(res.statusCode, 400);
-    assert.deepEqual(files(), []);
+    assert.ok(big.length < 25 * 1024 * 1024, "test görseli sınırın altında olmalı");
+    const res = await upload(id, "buyuk.png", "image/png", big);
+    assert.equal(res.statusCode, 200);
+    const stored = fs.readFileSync(path.join(ctx.photosDir, files()[0]));
+    assert.ok(stored.equals(big));
+    const meta = await sharp(stored).metadata();
+    assert.equal(meta.width, 7000);
+    assert.equal(meta.height, 5000);
   });
 
   it("olmayan anıya yüklemede 404 verir ve dosya bırakmaz", async () => {

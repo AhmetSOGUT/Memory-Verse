@@ -9,6 +9,13 @@ import { PhotoError, PhotoStore } from "./photoStore.js";
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const nameParams = z.object({ name: z.string().max(100) });
 
+/** Dosya uzantısı → servis edilecek içerik türü. Fotoğraflar yeniden kodlanmadığı için uzantı biçimi belirler. */
+const CONTENT_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
 export function registerPhotoRoutes(app: FastifyInstance, db: DB, store: PhotoStore, hub: LiveHub): void {
   const get = db.prepare<[number], MemoryRow>(`${MEMORY_SELECT} WHERE m.id = ?`);
   const setPhoto = db.prepare<[string | null, number]>(
@@ -62,8 +69,9 @@ export function registerPhotoRoutes(app: FastifyInstance, db: DB, store: PhotoSt
     } catch {
       return reply.status(404).send({ error: "Bulunamadı" });
     }
+    const ext = name.slice(name.lastIndexOf(".") + 1);
     return reply
-      .type("image/webp")
+      .type(CONTENT_TYPES[ext] ?? "application/octet-stream")
       .header("Cache-Control", "private, max-age=31536000, immutable") // ad her yüklemede yeni, güvenle önbelleğe alınır
       .header("X-Content-Type-Options", "nosniff")
       .header("Content-Security-Policy", "default-src 'none'; sandbox")

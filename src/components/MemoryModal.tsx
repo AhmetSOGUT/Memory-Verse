@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { compressImage } from "../lib/image";
 import { canonicalCategory } from "../lib/search";
 import type { Memory, MemoryDraft, PhotoChange } from "../types";
 
@@ -22,6 +21,12 @@ function MemoryModal({ isOpen, ...rest }: MemoryModalProps) {
   return <MemoryForm key={rest.editingMemory?.id ?? "new"} {...rest} />;
 }
 
+/** Dosya boyutunu okunur biçimde yazar (KB / MB). */
+function formatSize(bytes: number): string {
+  const kb = bytes / 1024;
+  return kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb.toFixed(0)} KB`;
+}
+
 function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Omit<MemoryModalProps, "isOpen">) {
   const [date, setDate] = useState(editingMemory?.date || "");
   const [title, setTitle] = useState(editingMemory?.title || "");
@@ -29,11 +34,20 @@ function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Om
   const [category, setCategory] = useState(editingMemory?.category || "");
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [image, setImage] = useState<string | null>(editingMemory?.image || null);
-  const [isCompressing, setIsCompressing] = useState(false);
-  const [originalSize, setOriginalSize] = useState<string | null>(null);
-  const [compressedSize, setCompressedSize] = useState<string | null>(null);
+  /** Formda gösterilen fotoğraf adresi: mevcut anının fotoğrafı ya da yeni seçilen dosyanın blob adresi. */
+  const [preview, setPreview] = useState<string | null>(editingMemory?.image || null);
+  /** Yeni seçilen dosya; sunucuya olduğu gibi gönderilir (kalite kaybı olmaz). */
+  const [pickedFile, setPickedFile] = useState<File | null>(null);
+  const [pickedSize, setPickedSize] = useState<string | null>(null);
+  /** Mevcut fotoğraf kullanıcı tarafından kaldırıldı mı? (kaydederken silinir) */
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const objectUrl = useRef<string | null>(null);
   const categoryBox = useRef<HTMLDivElement>(null);
+
+  // Önizleme için oluşturulan blob adresi, bileşen kapanınca serbest bırakılır
+  useEffect(() => () => {
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+  }, []);
 
   const suggestions = useMemo(() => {
     const needle = category.trim().toLocaleLowerCase("tr-TR");
@@ -76,41 +90,41 @@ function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Om
     }
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsCompressing(true);
-    setOriginalSize((file.size / 1024).toFixed(1));
+    // Yeniden boyutlandırma/sıkıştırma YOK: dosya olduğu gibi yüklenir, önizleme için geçici adres üretilir.
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    const url = URL.createObjectURL(file);
+    objectUrl.current = url;
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const raw = reader.result as string;
-      const compressed = await compressImage(raw);
-      const compressedBytes = Math.round((compressed.length * 3) / 4);
-      setCompressedSize((compressedBytes / 1024).toFixed(1));
-      setImage(compressed);
-      setIsCompressing(false);
-    };
-    reader.readAsDataURL(file);
+    setPickedFile(file);
+    setPickedSize(formatSize(file.size));
+    setPreview(url);
+    setImageRemoved(false);
   }
 
   function handleRemoveImage() {
-    setImage(null);
-    setOriginalSize(null);
-    setCompressedSize(null);
+    if (objectUrl.current) {
+      URL.revokeObjectURL(objectUrl.current);
+      objectUrl.current = null;
+    }
+    setPickedFile(null);
+    setPickedSize(null);
+    setPreview(null);
+    setImageRemoved(true);
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    // Fotoğrafa ne olacağını, açılıştaki hâline göre belirle
-    const original = editingMemory?.image ?? null;
     let photo: PhotoChange = { kind: "keep" };
-    if (image !== original) photo = image === null ? { kind: "remove" } : { kind: "set", dataUrl: image };
+    if (pickedFile) photo = { kind: "set", file: pickedFile };
+    else if (imageRemoved) photo = { kind: "remove" };
     onSave({ date, title, description, category: canonicalCategory(category, categories) }, photo);
   }
 
-  const busy = isCompressing || isSaving;
+  const busy = isSaving;
 
   return (
     <div className="modal" style={{ display: "flex" }}>
@@ -223,7 +237,7 @@ function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Om
           <div style={{ marginBottom: "20px" }}>
             <label>Fotoğraf Ekle</label>
 
-            {!image ? (
+            {!preview ? (
               <input
                 type="file"
                 accept="image/*"
@@ -235,7 +249,7 @@ function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Om
                 {/* Önizleme */}
                 <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
                   <img
-                    src={image}
+                    src={preview}
                     alt="Önizleme"
                     style={{
                       width: "100%",
@@ -269,15 +283,10 @@ function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Om
                   </button>
                 </div>
 
-                {/* Sıkıştırma bilgisi */}
-                {isCompressing && (
-                  <p style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: "6px" }}>
-                    ⏳ Fotoğraf optimize ediliyor...
-                  </p>
-                )}
-                {!isCompressing && originalSize && compressedSize && (
+                {/* Fotoğraf bilgisi: kalite korunur, sıkıştırma yapılmaz */}
+                {pickedSize && (
                   <p style={{ fontSize: "0.78rem", color: "#6ee7b7", marginTop: "6px" }}>
-                    ✅ {originalSize} KB → {compressedSize} KB'a sıkıştırıldı
+                    ✅ {pickedSize} · orijinal kalite (yeniden sıkıştırılmaz)
                   </p>
                 )}
               </div>
@@ -318,11 +327,7 @@ function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Om
                 transition: "background 0.3s",
               }}
             >
-              {isCompressing
-                ? "⏳ Optimize ediliyor..."
-                : isSaving
-                ? "💾 Kaydediliyor..."
-                : "Kaydet 💕"}
+              {isSaving ? "💾 Kaydediliyor..." : "Kaydet 💕"}
             </button>
           </div>
         </form>

@@ -67,7 +67,7 @@ Her anı, uzayda kendi renginde parlayan bir orb olur. Fotoğraflı anılar ise 
 
 - ✦ Sunucu yok · Bulut yok · İnternet gerekmez
 - ✦ Tüm veriler cihazında **IndexedDB**'de saklanır
-- ✦ Fotoğraflar kaydedilmeden önce **otomatik sıkıştırılır**
+- ✦ Fotoğraflar yüklendiği kalitede, **sıkıştırılmadan** saklanır
 
 <br/>
 
@@ -86,7 +86,7 @@ Her anı, uzayda kendi renginde parlayan bir orb olur. Fotoğraflı anılar ise 
 | **Shader'lar** | GLSL — Fresnel, dalga, halka efektleri |
 | **Veri** | IndexedDB (local-first) |
 | **Stil** | Saf CSS — glassmorphism, gradient, animasyon |
-| **Fotoğraf** | Canvas API — sıkıştırma + maske |
+| **Fotoğraf** | Orijinal dosya + küre dokusunda maske |
 
 <br/>
 
