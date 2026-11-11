@@ -20,15 +20,28 @@ export interface MemoryRow {
 export const MEMORY_SELECT =
   "SELECT m.*, u.display_name AS author FROM memories m LEFT JOIN users u ON u.id = m.created_by";
 
-/** Arayüzün beklediği biçim (src/types.ts'teki Memory ile uyumlu). */
-export function toApi(row: MemoryRow) {
+const urlOf = (name: string) => `/api/photos/${name}`;
+
+/** Bir anının fotoğraf dosya adları; ilk sıradaki kapaktır. */
+export function photoNamesOf(db: DB, memoryId: number): string[] {
+  return db
+    .prepare<[number], { name: string }>(
+      "SELECT name FROM memory_photos WHERE memory_id = ? ORDER BY sort, id",
+    )
+    .all(memoryId)
+    .map((row) => row.name);
+}
+
+/** Arayüzün beklediği biçim (src/types.ts'teki Memory ile uyumlu). `image` kapağa işaret eder. */
+export function toApi(row: MemoryRow, photoNames: string[]) {
   return {
     id: row.id,
     date: row.date,
     title: row.title,
     description: row.description,
     category: row.category,
-    image: row.photo ? `/api/photos/${row.photo}` : null,
+    image: photoNames.length ? urlOf(photoNames[0]) : null,
+    images: photoNames.map(urlOf),
     author: row.author,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -73,7 +86,7 @@ export function registerMemoryRoutes(app: FastifyInstance, db: DB, photos: Photo
   );
   const remove = db.prepare<[number]>("DELETE FROM memories WHERE id = ?");
 
-  app.get("/api/memories", async () => list.all().map(toApi));
+  app.get("/api/memories", async () => list.all().map((row) => toApi(row, photoNamesOf(db, row.id))));
 
   app.post("/api/memories", async (req, reply) => {
     const body = memoryBody.parse(req.body);
@@ -86,7 +99,7 @@ export function registerMemoryRoutes(app: FastifyInstance, db: DB, photos: Photo
     );
     const row = get.get(Number(lastInsertRowid))!;
     hub.publish({ action: "created", id: row.id, title: row.title, by: req.user!.displayName, byId: req.user!.id });
-    return reply.status(201).send(toApi(row));
+    return reply.status(201).send(toApi(row, photoNamesOf(db, row.id)));
   });
 
   app.put("/api/memories/:id", async (req, reply) => {
@@ -96,22 +109,22 @@ export function registerMemoryRoutes(app: FastifyInstance, db: DB, photos: Photo
     const current = get.get(id);
     if (!current) return reply.status(404).send({ error: "Anı bulunamadı" });
     if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== current.updated_at) {
-      return reply.status(409).send({ error: "Bu anı sen düzenlerken başka biri değiştirdi", current: toApi(current) });
+      return reply.status(409).send({ error: "Bu anı sen düzenlerken başka biri değiştirdi", current: toApi(current, photoNamesOf(db, id)) });
     }
     update.run(body.date, body.title, body.description, cleanCategory(body.category), id);
     const row = get.get(id)!;
     hub.publish({ action: "updated", id, title: row.title, by: req.user!.displayName, byId: req.user!.id });
-    return toApi(row);
+    return toApi(row, photoNamesOf(db, id));
   });
 
   app.delete("/api/memories/:id", async (req, reply) => {
     const { id } = idParams.parse(req.params);
     const existing = get.get(id);
-    if (!existing || remove.run(id).changes === 0) {
-      return reply.status(404).send({ error: "Anı bulunamadı" });
-    }
+    if (!existing) return reply.status(404).send({ error: "Anı bulunamadı" });
+    const names = photoNamesOf(db, id); // silmeden ÖNCE topla: satırlar CASCADE ile gider
+    if (remove.run(id).changes === 0) return reply.status(404).send({ error: "Anı bulunamadı" });
     hub.publish({ action: "deleted", id, title: existing.title, by: req.user!.displayName, byId: req.user!.id });
-    await photos.remove(existing.photo); // fotoğraf dosyası da silinir
+    await Promise.all(names.map((name) => photos.remove(name)));
     return reply.status(204).send();
   });
 }

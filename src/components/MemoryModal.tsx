@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { canonicalCategory } from "../lib/search";
-import type { Memory, MemoryDraft, PhotoChange } from "../types";
+import { MAX_PHOTOS, memoryImages, photoName } from "../lib/photos";
+import type { Memory, MemoryDraft, PhotoEdits } from "../types";
 
 interface MemoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (draft: MemoryDraft, photo: PhotoChange) => void | Promise<void>;
+  onSave: (draft: MemoryDraft, photos: PhotoEdits) => void | Promise<void>;
   editingMemory: Memory | null;
   /** Daha önce kullanılan kategoriler (yazılabilir açılır liste). */
   categories: string[];
@@ -21,10 +22,16 @@ function MemoryModal({ isOpen, ...rest }: MemoryModalProps) {
   return <MemoryForm key={rest.editingMemory?.id ?? "new"} {...rest} />;
 }
 
-/** Dosya boyutunu okunur biçimde yazar (KB / MB). */
-function formatSize(bytes: number): string {
-  const kb = bytes / 1024;
-  return kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb.toFixed(0)} KB`;
+/** Formdaki tek bir fotoğraf: mevcut (sunucuda kayıtlı) ya da yeni seçilmiş dosya. */
+interface PhotoItem {
+  /** Kararlı anahtar (mevcut fotoğrafın dosya adı ya da yeni-<n>). */
+  key: string;
+  /** Önizleme adresi (yeni dosyalarda blob adresi). */
+  url: string;
+  /** Mevcut fotoğrafın sunucudaki dosya adı; yeni seçilenlerde null. */
+  name: string | null;
+  /** Yeni seçilen dosya; kaydederken olduğu gibi yüklenir. */
+  file: File | null;
 }
 
 function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Omit<MemoryModalProps, "isOpen">) {
@@ -34,19 +41,22 @@ function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Om
   const [category, setCategory] = useState(editingMemory?.category || "");
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  /** Formda gösterilen fotoğraf adresi: mevcut anının fotoğrafı ya da yeni seçilen dosyanın blob adresi. */
-  const [preview, setPreview] = useState<string | null>(editingMemory?.image || null);
-  /** Yeni seçilen dosya; sunucuya olduğu gibi gönderilir (kalite kaybı olmaz). */
-  const [pickedFile, setPickedFile] = useState<File | null>(null);
-  const [pickedSize, setPickedSize] = useState<string | null>(null);
-  /** Mevcut fotoğraf kullanıcı tarafından kaldırıldı mı? (kaydederken silinir) */
-  const [imageRemoved, setImageRemoved] = useState(false);
-  const objectUrl = useRef<string | null>(null);
+  /** Seçili fotoğraflar; ilk sıradaki kapak olur. */
+  const [photos, setPhotos] = useState<PhotoItem[]>(() =>
+    (editingMemory ? memoryImages(editingMemory) : []).map((url) => {
+      const name = photoName(url);
+      return { key: name, url, name, file: null };
+    }),
+  );
+  /** Kaydederken silinecek mevcut fotoğrafların dosya adları. */
+  const [removedPhotos, setRemovedPhotos] = useState<string[]>([]);
+  const objectUrls = useRef<string[]>([]);
+  const nextKey = useRef(0);
   const categoryBox = useRef<HTMLDivElement>(null);
 
-  // Önizleme için oluşturulan blob adresi, bileşen kapanınca serbest bırakılır
+  // Yeni dosyalar için üretilen blob adresleri, bileşen kapanınca serbest bırakılır
   useEffect(() => () => {
-    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    for (const url of objectUrls.current) URL.revokeObjectURL(url);
   }, []);
 
   const suggestions = useMemo(() => {
@@ -90,38 +100,54 @@ function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Om
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = ""; // aynı dosya tekrar seçilebilsin
+    if (picked.length === 0) return;
 
-    // Yeniden boyutlandırma/sıkıştırma YOK: dosya olduğu gibi yüklenir, önizleme için geçici adres üretilir.
-    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
-    const url = URL.createObjectURL(file);
-    objectUrl.current = url;
+    const room = MAX_PHOTOS - photos.length;
+    if (room <= 0) return;
 
-    setPickedFile(file);
-    setPickedSize(formatSize(file.size));
-    setPreview(url);
-    setImageRemoved(false);
+    // Yeniden boyutlandırma/sıkıştırma YOK: dosyalar olduğu gibi yüklenir, önizleme için geçici adres üretilir.
+    const items: PhotoItem[] = picked.slice(0, room).map((file) => {
+      const url = URL.createObjectURL(file);
+      objectUrls.current.push(url);
+      return { key: `new-${nextKey.current++}`, url, name: null, file };
+    });
+    setPhotos((prev) => [...prev, ...items]);
   }
 
-  function handleRemoveImage() {
-    if (objectUrl.current) {
-      URL.revokeObjectURL(objectUrl.current);
-      objectUrl.current = null;
+  function removePhoto(item: PhotoItem) {
+    if (item.name) setRemovedPhotos((prev) => [...prev, item.name!]);
+    else {
+      URL.revokeObjectURL(item.url);
+      objectUrls.current = objectUrls.current.filter((url) => url !== item.url);
     }
-    setPickedFile(null);
-    setPickedSize(null);
-    setPreview(null);
-    setImageRemoved(true);
+    setPhotos((prev) => prev.filter((p) => p.key !== item.key));
+  }
+
+  /** Fotoğrafı başa alır: kapak (küre/kart) o fotoğraf olur. */
+  function makeCover(item: PhotoItem) {
+    setPhotos((prev) => [item, ...prev.filter((p) => p.key !== item.key)]);
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    let photo: PhotoChange = { kind: "keep" };
-    if (pickedFile) photo = { kind: "set", file: pickedFile };
-    else if (imageRemoved) photo = { kind: "remove" };
-    onSave({ date, title, description, category: canonicalCategory(category, categories) }, photo);
+
+    // Sıra, formdaki görüntüleme sırasıdır; yeni dosyalar `added` içindeki indeksleriyle işaretlenir.
+    const added: File[] = [];
+    const order = photos.map((item) => {
+      if (item.file) {
+        added.push(item.file);
+        return { kind: "new" as const, index: added.length - 1 };
+      }
+      return { kind: "existing" as const, name: item.name! };
+    });
+
+    onSave(
+      { date, title, description, category: canonicalCategory(category, categories) },
+      { added, removed: removedPhotos, order },
+    );
   }
 
   const busy = isSaving;
@@ -235,62 +261,61 @@ function MemoryForm({ onClose, onSave, editingMemory, categories, isSaving }: Om
 
           {/* ── Fotoğraf alanı ── */}
           <div style={{ marginBottom: "20px" }}>
-            <label>Fotoğraf Ekle</label>
+            <label>Fotoğraflar</label>
 
-            {!preview ? (
+            {photos.length === 0 ? (
               <input
                 type="file"
                 accept="image/*"
-                onChange={handleFileChange}
+                multiple
+                onChange={handleFilesChange}
                 disabled={busy}
               />
             ) : (
-              <div style={{ marginTop: "10px" }}>
-                {/* Önizleme */}
-                <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
-                  <img
-                    src={preview}
-                    alt="Önizleme"
-                    style={{
-                      width: "100%",
-                      borderRadius: "12px",
-                      maxHeight: "200px",
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    style={{
-                      position: "absolute",
-                      top: "8px",
-                      right: "8px",
-                      background: "rgba(0,0,0,0.7)",
-                      border: "none",
-                      borderRadius: "50%",
-                      color: "white",
-                      width: "28px",
-                      height: "28px",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
+              <div className="photo-picker">
+                {photos.map((item, index) => (
+                  <div key={item.key} className={`photo-thumb${index === 0 ? " photo-thumb--cover" : ""}`}>
+                    <img
+                      src={item.url}
+                      alt={index === 0 ? "Kapak fotoğrafı" : `Fotoğraf ${index + 1}`}
+                      onClick={() => makeCover(item)}
+                      title={index === 0 ? "Kapak fotoğrafı" : "Kapak yapmak için dokun"}
+                    />
+                    {index === 0 && <span className="photo-thumb__badge">Kapak</span>}
+                    <button
+                      type="button"
+                      className="photo-thumb__remove"
+                      onClick={() => removePhoto(item)}
+                      aria-label="Fotoğrafı kaldır"
+                      disabled={busy}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
 
-                {/* Fotoğraf bilgisi: kalite korunur, sıkıştırma yapılmaz */}
-                {pickedSize && (
-                  <p style={{ fontSize: "0.78rem", color: "#6ee7b7", marginTop: "6px" }}>
-                    ✅ {pickedSize} · orijinal kalite (yeniden sıkıştırılmaz)
-                  </p>
+                {photos.length < MAX_PHOTOS && (
+                  <label className="photo-thumb photo-thumb--add" title="Fotoğraf ekle">
+                    <span aria-hidden="true">＋</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleFilesChange}
+                      disabled={busy}
+                      hidden
+                    />
+                  </label>
                 )}
               </div>
             )}
+
+            <p className="photo-picker__hint">
+              {photos.length > 1
+                ? "İlk fotoğraf kapak olur. Kapak yapmak istediğin fotoğrafa dokun."
+                : "Birden fazla fotoğraf ekleyebilirsin. İlk fotoğraf kapak olur."}
+              {photos.length > 0 && ` · ${photos.length}/${MAX_PHOTOS}`}
+            </p>
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>

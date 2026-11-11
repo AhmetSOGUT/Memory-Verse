@@ -6,8 +6,10 @@ export interface Memory {
   description: string;
   /** Elle yazılan kategori; yoksa null/undefined. */
   category?: string | null;
-  /** Fotoğrafın sunucudaki adresi (/api/photos/...); yoksa null. */
+  /** Kapak fotoğrafı (ilk fotoğraf) adresi; yoksa null. */
   image?: string | null;
+  /** Bütün fotoğraflar, kapak ilk sırada. Eski kayıtlarda boş olabilir (o zaman `image` kullanılır). */
+  images?: string[];
   /** Anıyı ekleyen kişinin görünen adı. */
   author?: string | null;
   createdAt?: string;
@@ -17,12 +19,15 @@ export interface Memory {
 /** Formda kullanıcının doldurduğu alanlar (id, fotoğraf ve yazar sunucudan gelir). */
 export type MemoryDraft = Pick<Memory, "date" | "title" | "description" | "category">;
 
-/** Kaydederken fotoğrafa ne olacağı. */
-export type PhotoChange =
-  | { kind: "keep" }
-  /** Kullanıcının seçtiği dosya; sunucuya olduğu gibi (sıkıştırılmadan) yüklenir. */
-  | { kind: "set"; file: File }
-  | { kind: "remove" };
+/** Kaydederken fotoğraflara ne olacağı. */
+export type PhotoEdits = {
+  /** Yeni eklenecek dosyalar (seçim sırasına göre; sunucu bu sırayla ekler). */
+  added: File[];
+  /** Silinecek mevcut fotoğrafların dosya adları (ör. "ab12….jpg"). */
+  removed: string[];
+  /** Nihai sıra; ilk sıradaki kapak olur. Yeni dosyalar `added` içindeki indeksle gösterilir. */
+  order: Array<{ kind: "existing"; name: string } | { kind: "new"; index: number }>;
+};
 
 /** Giriş yapmış kullanıcı. */
 export interface AuthUser {

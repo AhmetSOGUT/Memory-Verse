@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Memory } from "../types";
+import { memoryImages } from "../lib/photos";
+import PhotoCarousel from "./PhotoCarousel";
 import PhotoViewer from "./PhotoViewer";
 import ScrollText from "./ScrollText";
 
@@ -37,8 +39,10 @@ function useReveal() {
 }
 
 function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
-  const [zoomOpen, setZoomOpen] = useState(false);
+  /** Tam ekran açıkken hangi fotoğraf gösteriliyor (null = kapalı). */
+  const [zoomIndex, setZoomIndex] = useState<number | null>(null);
   const [cardRef, revealed] = useReveal();
+  const images = memoryImages(memory);
 
   const formattedDate = new Date(memory.date).toLocaleDateString("tr-TR", {
     day: "numeric",
@@ -77,18 +81,22 @@ function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
           <h2 className="memory-title">{memory.title}</h2>
           <ScrollText className="memory-description">{memory.description}</ScrollText>
 
-          {memory.image && (
-            <img
-              src={memory.image}
-              className="memory-image"
-              alt="Anı fotoğrafı"
-              onClick={() => setZoomOpen(true)}
+          {images.length > 0 && (
+            <PhotoCarousel
+              images={images}
+              alt={memory.title}
+              className="memory-carousel"
+              imgClassName="memory-image"
+              onOpen={setZoomIndex}
+              counter
             />
           )}
         </div>
       </div>
 
-      {zoomOpen && memory.image && <PhotoViewer src={memory.image} onClose={() => setZoomOpen(false)} />}
+      {zoomIndex !== null && images[zoomIndex] && (
+        <PhotoViewer images={images} index={zoomIndex} onClose={() => setZoomIndex(null)} />
+      )}
     </>
   );
 }

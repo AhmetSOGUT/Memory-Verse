@@ -35,7 +35,8 @@ describe("kimlik doğrulama", () => {
   it("giriş yapmadan hiçbir uç nokta açılmaz (deny-by-default)", async () => {
     const protectedRoutes: Array<[string, string]> = [
       ["GET", "/api/memories"], ["POST", "/api/memories"], ["PUT", "/api/memories/1"], ["DELETE", "/api/memories/1"],
-      ["PUT", "/api/memories/1/photo"], ["DELETE", "/api/memories/1/photo"], ["GET", "/api/photos/" + "a".repeat(32) + ".webp"],
+      ["POST", "/api/memories/1/photos"], ["DELETE", "/api/memories/1/photos/" + "a".repeat(32) + ".jpg"],
+      ["PUT", "/api/memories/1/photos/order"], ["GET", "/api/photos/" + "a".repeat(32) + ".webp"],
       ["GET", "/api/auth/me"], ["POST", "/api/auth/logout"], ["POST", "/api/auth/password"],
     ];
     for (const [method, url] of protectedRoutes) {

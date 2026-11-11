@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { Memory } from "../../types";
+import { memoryImages } from "../../lib/photos";
+import PhotoCarousel from "../PhotoCarousel";
 import PhotoViewer from "../PhotoViewer";
 import ScrollText from "../ScrollText";
 
@@ -28,13 +30,14 @@ const DRAG_RATIO = 1;
  * React metni otomatik kaçırır.
  */
 export default function OrbPanel({ memory, onClose, position, onPrev, onNext }: OrbPanelProps) {
-  const [zoomOpen, setZoomOpen] = useState(false);
+  const [zoomIndex, setZoomIndex] = useState<number | null>(null);
   const [height, setHeight] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
   const dragRef = useRef<{ startY: number; startHeight: number; maxHeight: number } | null>(null);
   /** Panelin küçültülmemiş (doğal) yüksekliği; yukarı sürükleyince buraya kadar geri açılır. */
   const naturalHeightRef = useRef<number | null>(null);
+  const images = memoryImages(memory);
 
   const date = new Date(memory.date).toLocaleDateString("tr-TR", {
     day: "numeric", month: "long", year: "numeric",
@@ -87,9 +90,9 @@ export default function OrbPanel({ memory, onClose, position, onPrev, onNext }: 
         onPointerCancel={handleGripUp}
       />
       <div className="orb-panel__scroll">
-        {memory.image ? (
+        {images.length > 0 ? (
           <div className="orb-panel__photo">
-            <img src={memory.image} alt={memory.title} onClick={() => setZoomOpen(true)} />
+            <PhotoCarousel images={images} alt={memory.title} onOpen={setZoomIndex} counter />
           </div>
         ) : (
           <div className="orb-panel__placeholder">💫</div>
@@ -111,7 +114,9 @@ export default function OrbPanel({ memory, onClose, position, onPrev, onNext }: 
         </div>
       </div>
       <button className="orb-panel__close" onClick={onClose} aria-label="Kapat">✕</button>
-      {zoomOpen && memory.image && <PhotoViewer src={memory.image} onClose={() => setZoomOpen(false)} />}
+      {zoomIndex !== null && images[zoomIndex] && (
+        <PhotoViewer images={images} index={zoomIndex} onClose={() => setZoomIndex(null)} />
+      )}
     </aside>
   );
 }

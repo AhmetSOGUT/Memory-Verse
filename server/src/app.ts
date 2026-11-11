@@ -60,7 +60,9 @@ export function buildApp(db: DB, options: AppOptions) {
   registerHostCheck(app, options.allowedHosts ?? config.allowedHosts);
 
   app.register(multipart, {
-    limits: { fileSize: 25 * 1024 * 1024, files: 1, fields: 0, parts: 2 }, // en fazla 25 MB (fotoğraflar yeniden sıkıştırılmaz), tek dosya
+    // Fotoğraflar yeniden sıkıştırılmaz; her dosya en fazla 25 MB. Birden fazla fotoğraf tek istekte
+    // gelebilir (sunucu dosyaları tek tek işler). Anı başına 12 sınırı rotada, anlaşılır mesajla uygulanır.
+    limits: { fileSize: 25 * 1024 * 1024, files: 15, fields: 0, parts: 16 },
   });
   const photos = new PhotoStore(options.photosDir);
 

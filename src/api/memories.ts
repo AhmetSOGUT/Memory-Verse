@@ -14,11 +14,16 @@ export const updateMemory = (id: number, draft: MemoryDraft, expectedUpdatedAt?:
 
 export const deleteMemory = (id: number) => api<void>("DELETE", `/api/memories/${id}`);
 
-/** Seçilen fotoğrafı olduğu gibi (yeniden sıkıştırmadan) yükler. */
-export async function setMemoryPhoto(id: number, file: File): Promise<Memory> {
+/** Fotoğrafları olduğu gibi (yeniden sıkıştırmadan) yükler; sunucu verilen sırayla ekler. */
+export async function addMemoryPhotos(id: number, files: File[]): Promise<Memory> {
   const form = new FormData();
-  form.append("file", file, file.name || "photo");
-  return api<Memory>("PUT", `/api/memories/${id}/photo`, { body: form });
+  for (const file of files) form.append("files", file, file.name || "photo");
+  return api<Memory>("POST", `/api/memories/${id}/photos`, { body: form });
 }
 
-export const removeMemoryPhoto = (id: number) => api<Memory>("DELETE", `/api/memories/${id}/photo`);
+export const removeMemoryPhoto = (id: number, name: string) =>
+  api<Memory>("DELETE", `/api/memories/${id}/photos/${encodeURIComponent(name)}`);
+
+/** Fotoğraf sırasını değiştirir; ilk sıradaki kapak (küre/kart) olur. */
+export const reorderMemoryPhotos = (id: number, names: string[]) =>
+  api<Memory>("PUT", `/api/memories/${id}/photos/order`, { json: { names } });

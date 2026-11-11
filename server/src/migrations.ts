@@ -48,4 +48,19 @@ export const migrations: string[] = [
   ALTER TABLE memories ADD COLUMN category TEXT;
   CREATE INDEX idx_memories_category ON memories(category);
   `,
+
+  // 4 — bir anıya birden fazla fotoğraf; sıra `sort` ile (ilk sıradaki kapak)
+  `
+  CREATE TABLE memory_photos (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    memory_id INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    name      TEXT NOT NULL,
+    sort      INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX idx_memory_photos_memory ON memory_photos(memory_id, sort, id);
+
+  -- Eski tek fotoğraflar yeni tabloya ilk sıradan taşınır
+  INSERT INTO memory_photos (memory_id, name, sort)
+  SELECT id, photo, 0 FROM memories WHERE photo IS NOT NULL;
+  `,
 ];

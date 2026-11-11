@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, errorMessage } from "../api/client";
 import {
-  createMemory, deleteMemory, listMemories, removeMemoryPhoto, setMemoryPhoto, updateMemory,
+  addMemoryPhotos, createMemory, deleteMemory, listMemories, removeMemoryPhoto, reorderMemoryPhotos, updateMemory,
 } from "../api/memories";
 import { useLiveSync, type LiveEvent } from "../hooks/useLiveSync";
-import type { AuthUser, Memory, MemoryDraft, PhotoChange } from "../types";
+import { memoryImages, photoName } from "../lib/photos";
+import type { AuthUser, Memory, MemoryDraft, PhotoEdits } from "../types";
 import ConfirmModal from "./ConfirmModal";
 import FloatingHearts from "./FloatingHearts";
 import Header from "./Header";
@@ -179,7 +180,7 @@ function Workspace({ user, onLogout }: WorkspaceProps) {
     setPendingDeleteId(null);
   }
 
-  async function handleSave(draft: MemoryDraft, photo: PhotoChange) {
+  async function handleSave(draft: MemoryDraft, photo: PhotoEdits) {
     setIsSaving(true);
 
     // 1) Anının kendisi. Başarısız olursa form açık kalır, kullanıcı tekrar deneyebilir.
@@ -212,11 +213,33 @@ function Workspace({ user, onLogout }: WorkspaceProps) {
       return;
     }
 
-    // 2) Fotoğraf. Anı artık kayıtlı olduğundan bir hata formu açık tutmaz (çift kayıt olmasın).
+    // 2) Fotoğraflar. Anı artık kayıtlı olduğundan bir hata formu açık tutmaz (çift kayıt olmasın).
     let photoError: string | null = null;
     try {
-      if (photo.kind === "set") await setMemoryPhoto(saved.id, photo.file);
-      else if (photo.kind === "remove") await removeMemoryPhoto(saved.id);
+      const existingNames = new Set((editingMemory ? memoryImages(editingMemory) : []).map(photoName));
+      let latest = saved;
+
+      if (photo.added.length > 0) latest = await addMemoryPhotos(saved.id, photo.added);
+      for (const name of photo.removed) {
+        try {
+          latest = await removeMemoryPhoto(saved.id, name);
+        } catch (err) {
+          // Başkası aynı fotoğrafı zaten silmiş olabilir: sorun değil
+          if (!(err instanceof ApiError && err.status === 404)) throw err;
+        }
+      }
+
+      // Nihai sıra: mevcut adlar + yeni yüklenenlerin sunucudan dönen adları
+      const currentNames = memoryImages(latest).map(photoName);
+      const addedNames = currentNames.filter((name) => !existingNames.has(name));
+      const desired = photo.order.map((item) =>
+        item.kind === "existing" ? item.name : addedNames[item.index],
+      );
+      const unique = [...new Set(desired)].filter((name) => currentNames.includes(name));
+      const unchanged = unique.length === currentNames.length && unique.every((name, i) => name === currentNames[i]);
+      if (unique.length === currentNames.length && !unchanged) {
+        await reorderMemoryPhotos(saved.id, unique); // ilk sıradaki kapak olur
+      }
     } catch (err) {
       photoError = errorMessage(err);
     }

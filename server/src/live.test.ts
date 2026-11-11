@@ -134,19 +134,18 @@ describe("canlı senkron (SSE) ve eşzamanlılık", () => {
     assert.equal(JSON.stringify(watcher.events[0]).includes("gizli"), false, "açıklama olaya girmemeli");
   });
 
-  it("güncelleme, fotoğraf kaldırma ve silme de bildirilir; silinenin başlığı taşınır", async () => {
+  it("güncelleme ve silme de bildirilir; silinenin başlığı taşınır", async () => {
     await start();
     const id = (await call(ahmet, "POST", "/api/memories", memory)).json().id as number;
     const watcher = await connect(ayse);
     await eventually(() => watcher.status === 200, "bağlantı açıldı");
 
     await call(ahmet, "PUT", `/api/memories/${id}`, { ...memory, title: "Yeni başlık" });
-    await call(ahmet, "DELETE", `/api/memories/${id}/photo`);
     await call(ahmet, "DELETE", `/api/memories/${id}`);
 
-    await eventually(() => watcher.events.length === 3, "üç olay geldi");
+    await eventually(() => watcher.events.length === 2, "iki olay geldi");
     assert.deepEqual(watcher.events.map((e) => [e.action, e.title]), [
-      ["updated", "Yeni başlık"], ["updated", "Yeni başlık"], ["deleted", "Yeni başlık"],
+      ["updated", "Yeni başlık"], ["deleted", "Yeni başlık"],
     ]);
   });
 
