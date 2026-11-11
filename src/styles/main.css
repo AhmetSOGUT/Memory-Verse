@@ -427,11 +427,14 @@ input[type=file] { cursor:pointer; }
         box-shadow:0 14px 34px -10px rgba(0,0,0,0.55);
     }
     .card-content:hover { transform:none; border-color:var(--glass-border); }
+    /* Kart fotoğrafı: kırpılmadan, kart genişliğinde tam boyutta.
+       Kutunun en-boy oranı kapak fotoğrafından gelir (MemoryCard inline --photo-ar verir). */
     .memory-carousel {
         order:-1; border-radius:0; box-shadow:none; margin-top:0;
-        height:min(56vw, 340px);
+        height:auto; max-height:70vh;
+        aspect-ratio:var(--photo-ar, 1 / 1);
     }
-    .memory-image { object-position:center 35%; }
+    .memory-carousel .memory-image { object-fit:contain; object-position:center; }
     .date-badge { align-self:flex-start; margin:16px 18px 0; padding:5px 14px; font-size:0.72rem; }
     .memory-title { margin:12px 18px 8px; font-size:1.3rem; line-height:1.3; overflow-wrap:anywhere; }
     .memory-description { margin:0 18px 20px; font-size:0.95rem; line-height:1.65; max-height:calc(7 * 1.65em); }

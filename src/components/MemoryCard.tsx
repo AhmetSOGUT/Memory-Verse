@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import type { Memory } from "../types";
 import { memoryImages } from "../lib/photos";
 import PhotoCarousel from "./PhotoCarousel";
@@ -43,6 +44,29 @@ function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
   const [cardRef, revealed] = useReveal();
   const images = memoryImages(memory);
+  const cover = images[0] ?? null;
+  /**
+   * Kapak fotoğrafının en-boy oranı ("3 / 4" gibi). Mobilde kart fotoğrafının kutusu buna göre
+   * boyutlanır: fotoğraf kırpılmadan, kart genişliğinde tam boyutta görünür (masaüstü sabit kalır).
+   */
+  const [coverAspect, setCoverAspect] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Kart görünür olunca ölç: uzun zaman çizgisinde boşuna fotoğraf indirmeyelim
+    if (!cover || !revealed) return;
+    let cancelled = false;
+    const probe = new Image();
+    probe.onload = () => {
+      if (cancelled || !probe.naturalWidth || !probe.naturalHeight) return;
+      setCoverAspect(`${probe.naturalWidth} / ${probe.naturalHeight}`);
+    };
+    probe.src = cover;
+    return () => {
+      cancelled = true;
+    };
+  }, [cover, revealed]);
+
+  const photoStyle = coverAspect ? ({ "--photo-ar": coverAspect } as CSSProperties) : undefined;
 
   const formattedDate = new Date(memory.date).toLocaleDateString("tr-TR", {
     day: "numeric",
@@ -89,6 +113,7 @@ function MemoryCard({ memory, onEdit, onDelete }: MemoryCardProps) {
               imgClassName="memory-image"
               onOpen={setZoomIndex}
               counter
+              style={photoStyle}
             />
           )}
         </div>

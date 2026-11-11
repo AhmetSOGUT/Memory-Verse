@@ -25,6 +25,17 @@ const PITCH_LIMIT = Math.PI / 2 - 0.05;
 /** İncelemede sürükleme: piksel başına yörünge dönüşü (rad). */
 const ORBIT_SPEED = 0.005;
 const ORBIT_PITCH_SPEED = 0.004;
+/** Bırakınca dönüşün sönümleme süresi (sn): kısa, yumuşak bir kayma. */
+const ORBIT_INERTIA_TAU = 0.3;
+/** Kayan dönüşün en yüksek hızı (rad/sn): hızlı fırlatınca bile abartıya kaçmasın. */
+const ORBIT_MAX_SPIN = 0.9;
+/** Bırakış hızının kaymaya aktarılan oranı: tam momentum yerine hafif bir süzülme. */
+const ORBIT_INERTIA_GAIN = 0.6;
+/** Pointer olayları arasındaki süre (hız hesabı) için sınırlar (sn). */
+const MOVE_DT_MIN = 0.008;
+const MOVE_DT_MAX = 0.1;
+/** Bırakmadan hemen önce bu kadar süre hareketsiz kalındıysa dönüş sürmez (ms). */
+const MOVE_IDLE_MS = 120;
 /** Orb değiştirirken kamera geçişinin süresi (sn). Büyütmek geçişi yavaşlatır. */
 const TRANSITION_SECONDS = 0.75;
 /** Kamera kürenin merkezine bu kadar yakınsa bakış yönü açılardan verilir (lookAt kararsızlaşır). */
@@ -41,8 +52,8 @@ const KEY_MOVES: Record<string, "fwd" | "back" | "left" | "right" | "up" | "down
  * Kamera iki modda çalışır:
  *  - GEZİNME (hiçbir küre seçili değil): dünyanın içinde uçarsın. Sürükle = etrafına bak; tekerlek, W/S ya da iki parmakla
  *    sıkıştırma = ileri/geri; A/D yana; E/Q yukarı/aşağı; Shift = hızlı. Hız, en yakın küreye uzaklığa göre ayarlanır.
- *  - İNCELEME (bir küre seçili): küre YERİNDE KALIR; kamera onun etrafında döner. Sürükle = kürenin etrafında dön;
- *    tekerlek/sıkıştırma = yaklaş/uzaklaş (merkezine kadar yaklaşılabilir).
+ *  - İNCELEME (bir küre seçili): küre YERİNDE KALIR; kamera onun etrafında döner. Sürükle = kürenin etrafında dön
+ *    (bırakınca kısa bir süre sönümlenerek süzülür); tekerlek/sıkıştırma = yaklaş/uzaklaş (merkezine kadar yaklaşılabilir).
  */
 export function CameraRig({ autoRotate, dragState, store, count, homeTick, layout }: CameraRigProps) {
   const { camera, gl } = useThree();
@@ -53,6 +64,8 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick, layou
     lastX: 0, lastY: 0, startX: 0, startY: 0,
     yaw: 0, pitch: 0, targetYaw: 0, targetPitch: 0,
     orbitYaw: 0, orbitPitch: 0, // seçili küre etrafındaki yörünge açıları
+    // Bırakınca sönümlenen yörünge dönüşü (rad/sn) ve son hareket zamanı
+    orbitVelYaw: 0, orbitVelPitch: 0, lastMoveAt: 0,
     // Orb değişimi geçişi: yalnızca geçiş sırasında kullanılır (1 = geçiş bitti)
     transFrom: new THREE.Vector3(), transQuat: new THREE.Quaternion(), transT: 1,
     idleUntil: 0,
@@ -86,10 +99,15 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick, layou
         st.dragging = true;
         st.lastX = st.startX = e.clientX;
         st.lastY = st.startY = e.clientY;
+        st.lastMoveAt = performance.now();
+        st.orbitVelYaw = 0; // yeni tutuş: süren kaymayı kes
+        st.orbitVelPitch = 0;
         dragState.current.moved = false;
       } else if (pointers.size === 2) {
         // İkinci parmak: sürükleme biter, sıkıştırma başlar; sonunda küreye yanlışlıkla dokunulmasın
         st.dragging = false;
+        st.orbitVelYaw = 0;
+        st.orbitVelPitch = 0;
         pinchPrev = fingerDistance();
         dragState.current.moved = true;
       }
@@ -115,9 +133,17 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick, layou
       if (!st.dragging) return;
       const dx = e.clientX - st.lastX, dy = e.clientY - st.lastY;
       if (g.selected >= 0) {
-        // İnceleme: küre yerinde kalır, kamera onun etrafında döner
-        st.orbitYaw -= dx * ORBIT_SPEED;
-        st.orbitPitch = clamp(st.orbitPitch + dy * ORBIT_PITCH_SPEED, -PITCH_LIMIT, PITCH_LIMIT);
+        // İnceleme: küre yerinde kalır, kamera onun etrafında döner.
+        // Bırakınca kısa bir kayma sürsün diye açısal hız da ölçülür (rad/sn).
+        const now = performance.now();
+        const span = Math.min(MOVE_DT_MAX, Math.max(MOVE_DT_MIN, (now - st.lastMoveAt) / 1000));
+        st.lastMoveAt = now;
+        const dyaw = -dx * ORBIT_SPEED;
+        const dpitch = dy * ORBIT_PITCH_SPEED;
+        st.orbitYaw += dyaw;
+        st.orbitPitch = clamp(st.orbitPitch + dpitch, -PITCH_LIMIT, PITCH_LIMIT);
+        st.orbitVelYaw = clamp(st.orbitVelYaw + (dyaw / span * ORBIT_INERTIA_GAIN - st.orbitVelYaw) * 0.4, -ORBIT_MAX_SPIN, ORBIT_MAX_SPIN);
+        st.orbitVelPitch = clamp(st.orbitVelPitch + (dpitch / span * ORBIT_INERTIA_GAIN - st.orbitVelPitch) * 0.4, -ORBIT_MAX_SPIN, ORBIT_MAX_SPIN);
       } else {
         st.targetYaw -= dx * 0.004;
         st.targetPitch = clamp(st.targetPitch - dy * 0.003, -PITCH_LIMIT, PITCH_LIMIT);
@@ -137,11 +163,19 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick, layou
         st.dragging = true;
         st.lastX = st.startX = rest.x;
         st.lastY = st.startY = rest.y;
+        st.lastMoveAt = performance.now();
+        st.orbitVelYaw = 0;
+        st.orbitVelPitch = 0;
         dragState.current.moved = true;
       } else if (pointers.size === 0) {
         st.dragging = false;
         g.interacting = false;
         st.idleUntil = performance.now() + IDLE_RESUME_MS;
+        // Parmağı/fareyi basılı tutup sonra bıraktıysa dönüş sürmesin
+        if (performance.now() - st.lastMoveAt > MOVE_IDLE_MS) {
+          st.orbitVelYaw = 0;
+          st.orbitVelPitch = 0;
+        }
       }
     };
     const onWheel = (e: WheelEvent) => {
@@ -252,6 +286,8 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick, layou
         st.vel.set(0, 0, 0);
         st.pinchMove = 0;
         st.goHome = false;
+        st.orbitVelYaw = 0;
+        st.orbitVelPitch = 0;
       } else if (prev >= 0) {
         // İnceleme bitti: serbest bakış mevcut yönden sürsün (kamera sıçramasın)
         st.transT = 1;
@@ -265,6 +301,22 @@ export function CameraRig({ autoRotate, dragState, store, count, homeTick, layou
     if (sel >= 0) {
       // İnceleme: küre yerinde kalır; kamera onun canlı konumunun etrafında döner
       st.vel.set(0, 0, 0);
+
+      // Sürükleme bittiyse dönüş hemen durmaz: kısa süre sönümlenerek süzülür.
+      // Küre yörüngenin merkezinde kaldığı için ekrandaki yeri değişmez.
+      if (!st.dragging && (st.orbitVelYaw !== 0 || st.orbitVelPitch !== 0)) {
+        st.orbitYaw += st.orbitVelYaw * dt;
+        st.orbitPitch = clamp(st.orbitPitch + st.orbitVelPitch * dt, -PITCH_LIMIT, PITCH_LIMIT);
+        const decay = Math.exp(-dt / ORBIT_INERTIA_TAU);
+        st.orbitVelYaw *= decay;
+        st.orbitVelPitch *= decay;
+        if (Math.abs(st.orbitPitch) >= PITCH_LIMIT - 1e-4) st.orbitVelPitch = 0;
+        if (Math.abs(st.orbitVelYaw) < 0.02 && Math.abs(st.orbitVelPitch) < 0.02) {
+          st.orbitVelYaw = 0;
+          st.orbitVelPitch = 0;
+        }
+      }
+
       tmpOrb.fromArray(g.pos, sel * 3);
       const d = g.focusDistance;
       const cp = Math.cos(st.orbitPitch);

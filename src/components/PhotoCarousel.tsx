@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent,
+} from "react";
 
 interface PhotoCarouselProps {
   images: string[];
@@ -21,6 +23,8 @@ interface PhotoCarouselProps {
   index?: number;
   /** Gösterilen fotoğraf değişince çağrılır (ör. kürenin dokusunu güncellemek için). */
   onIndexChange?: (index: number) => void;
+  /** Kök öğeye ek stil (ör. mobilde fotoğrafın en-boy oranını vermek için). */
+  style?: CSSProperties;
 }
 
 /** Yatay sürükleme eşiği (px); altında kalan hareket tıklama sayılır. */
@@ -41,6 +45,7 @@ export default function PhotoCarousel({
   counter = false,
   index: controlledIndex,
   onIndexChange,
+  style,
 }: PhotoCarouselProps) {
   const [localIndex, setLocalIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -143,6 +148,7 @@ export default function PhotoCarousel({
   return (
     <div
       className={classes}
+      style={style}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
